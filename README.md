@@ -1,6 +1,8 @@
 # Replenish++ 🌾
 
-Auto-replant plugin for Paper/Purpur. You break a crop, it goes back in the ground. That's basically it. Stole the idea from Hypixel's Replenish because I got tired of replanting by hand.
+Auto-replant for Paper/Purpur. Break a crop, it goes right back in the ground. That's the whole plugin.
+
+If you ever farmed on Hypixel SkyBlock, you already know this idea it's Replenish, the enchantment that made farming not completely miserable.
 
 ![Preview](assets/output.webp)
 
@@ -21,7 +23,7 @@ Auto-replant plugin for Paper/Purpur. You break a crop, it goes back in the grou
 
 1. JAR goes in `plugins/`
 2. Start the server
-3. Poke at `plugins/ReplenishPlusPlus/config.yml` if you want
+3. Poke at `plugins/ReplenishPlusPlus/config.yml` if you want (defaults are fine though)
 4. You're done
 
 ## What happens by default (no config changes)
@@ -196,7 +198,7 @@ sounds:
 
 ## Contributions
 
-PRs are disabled on this repo, not because I don't want your help but because managing them gets overwhelming, and I'd rather not ghost people. Open an issue instead, feature ideas, bugs, optimizations, whatever. We'll talk it out there.
+PRs are disabled on this repo, not because I don't want your help but because managing them gets overwhelming for one person, and I'd rather not ghost anyone. Open an issue instead, feature ideas, bugs, optimizations, whatever. We'll talk it out there.
 
 ## License
 

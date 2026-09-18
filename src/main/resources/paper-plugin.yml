@@ -2,7 +2,7 @@ name: ReplenishPlusPlus
 main: dev.replenishplusplus.ReplenishPlusPlus
 version: "${project.version}"
 api-version: "26.3"
-description: "Auto-replant plugin for Paper/Purpur. You break a crop, it goes back in the ground. That's basically it. Stole the idea from Hypixel's Replenish because I got tired of replanting by hand."
+description: "Auto-replant for Paper/Purpur. Break a crop, it goes right back in the ground. Replenish from Hypixel SkyBlock, but for your own server, free and open source."
 authors: [ "Mitra-88" ]
 website: "https://github.com/Mitra-88/ReplenishPlusPlus"
 
