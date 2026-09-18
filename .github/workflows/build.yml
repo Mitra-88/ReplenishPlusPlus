@@ -1,23 +1,38 @@
-name: Build Replenish
+name: Build ReplenishPlusPlus
 
 on:
   push:
-    branches:
-      - 7.x.x
+    branches: [ "7.x.x" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
+      - name: Checkout repository
+        uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
 
-      - name: Set up JDK
-        uses: actions/setup-java@v5.7.0
+      - name: Set up JDK 25 (Zulu)
+        uses: actions/setup-java@0781fc6af30d3e1f67f2d243034e1a15cf5f3677
         with:
           distribution: 'zulu'
           java-version: '25'
+
+      - name: Cache local Maven repository
+        uses: actions/cache@3edfce9056124e459a23f683a21433670d47daca
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
       - name: Build with Maven
         run: mvn -B package --file pom.xml
@@ -27,18 +42,8 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Get build date
-        id: date
-        run: echo "build_date=$(date -u +'%d-%m-%Y-%H%M')UTC" >> "$GITHUB_OUTPUT"
-        shell: bash
-
-      - name: Sanitize branch name
-        id: branch
-        run: echo "name=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
-        shell: bash
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v7.0.1
+      - name: Upload Artifact with short SHA
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: Replenish-7.0.0-dev-mc26.2_branch-${{ steps.branch.outputs.name }}_server-PaperMC+Folia_${{ steps.date.outputs.build_date }}_run${{ github.run_number }}_${{ steps.sha.outputs.short_sha }}
+          name: ReplenishPlusPlus-7.0.0-${{ steps.sha.outputs.short_sha }}
           path: target/*.jar

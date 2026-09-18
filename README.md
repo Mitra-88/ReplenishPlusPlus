@@ -1,6 +1,6 @@
 # Replenish++ 🌾
 
-Auto-replant plugin for Paper/Purpur/Folia. You break a crop, it goes back in the ground. That's basically it. Stole the idea from Hypixel's Replenish because I got tired of replanting by hand.
+Auto-replant plugin for Paper/Purpur. You break a crop, it goes back in the ground. That's basically it. Stole the idea from Hypixel's Replenish because I got tired of replanting by hand.
 
 ![Preview](assets/output.webp)
 
@@ -11,6 +11,7 @@ Auto-replant plugin for Paper/Purpur/Folia. You break a crop, it goes back in th
 - Eats a seed from your inventory on mature harvest (can turn this off)
 - Can pipe drops straight into your inventory instead of the ground (also toggleable)
 - You actually need the right tool in hand. No hoe, no replant. Cocoa needs an axe.
+- Sneaking while you break bypasses auto-replant entirely (toggleable via `sneakToBypass`)
 - Cocoa gets replanted facing the right direction, which was annoying to get right
 - Fortune works like normal
 - Sounds are fully configurable, or you can just mute them all
@@ -20,7 +21,7 @@ Auto-replant plugin for Paper/Purpur/Folia. You break a crop, it goes back in th
 
 1. JAR goes in `plugins/`
 2. Start the server
-3. Poke at `plugins/Replenish/config.yml` if you want
+3. Poke at `plugins/ReplenishPlusPlus/config.yml` if you want
 4. You're done
 
 ## What happens by default (no config changes)
@@ -32,30 +33,36 @@ Auto-replant plugin for Paper/Purpur/Folia. You break a crop, it goes back in th
 
 **Immature crop:**
 - Replants at the same age it was. No seed needed.
+- No drops either — otherwise you could farm infinite seeds by re-breaking young crops.
 
 ---
 
 ## Commands & permissions
 
-| Command                          | What it does                                 |
-|----------------------------------|----------------------------------------------|
-| `/replenishplusplus status`      | Current settings                             |
-| `/replenishplusplus version`     | Plugin version & update status               |
-| `/replenishplusplus toggle`      | On/off switch for yourself                   |
-| `/replenishplusplus reload`      | Reload config.yml                            |
-| `/replenishplusplus debug queue` | View queue debug stats & performance metrics |
+| Command                            | What it does                                 |
+|------------------------------------|----------------------------------------------|
+| `/replenishplusplus`               | Main menu                                    |
+| `/replenishplusplus help`          | Detailed guide                               |
+| `/replenishplusplus status`        | Current settings                             |
+| `/replenishplusplus version`       | Plugin version & update status               |
+| `/replenishplusplus toggle`        | On/off switch for yourself                   |
+| `/replenishplusplus toggle global` | On/off switch for everyone                   |
+| `/replenishplusplus reload`        | Reload config.yml                            |
+| `/replenishplusplus debug queue`   | View queue debug stats & performance metrics |
+
+Aliases: `/rpp` and `/replenish` work for everything above.
 
 Permissions:
 
+- `replenishplusplus.use` - everyone
 - `replenishplusplus.status` - everyone
 - `replenishplusplus.version` - everyone
-- `replenishplusplus.use` - op
 - `replenishplusplus.toggle` - everyone
 - `replenishplusplus.toggle.global` - op
 - `replenishplusplus.reload` - op
 - `replenishplusplus.debug` - op
 - `replenishplusplus.update` - op
-- `replenishplusplus.*` - op
+- `replenishplusplus.*` - op (grants all of the above)
 
 ## Config
 
@@ -190,8 +197,6 @@ sounds:
 ## Contributions
 
 PRs are disabled on this repo, not because I don't want your help but because managing them gets overwhelming, and I'd rather not ghost people. Open an issue instead, feature ideas, bugs, optimizations, whatever. We'll talk it out there.
-
-That said, fork it, clone it, tear it apart, rebuild it weird. Make the thing *you* want to make. Everyone starts somewhere and you're goated. Go start now.
 
 ## License
 

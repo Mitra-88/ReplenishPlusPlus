@@ -1,6 +1,6 @@
 package dev.replenishplusplus.update;
 
-import net.kyori.adventure.text.minimessage.MiniMessage;
+import dev.replenishplusplus.config.Messages;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
@@ -9,15 +9,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class UpdateChecker {
 
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
+    private static final String REPO = "Mitra-88/ReplenishPlusPlus";
 
-    private static final String API_URL      = "https://api.github.com/repos/Mitra-88/ReplenishPlusPlus/releases/latest";
-    private static final String RELEASES_URL = "https://github.com/Mitra-88/ReplenishPlusPlus/releases/latest";
+    public static final String RELEASES_URL = "https://github.com/" + REPO + "/releases/latest";
+    private static final String API_URL     = "https://api.github.com/repos/" + REPO + "/releases/latest";
 
     private static final Pattern TAG_PATTERN =
             Pattern.compile("\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
@@ -26,7 +28,6 @@ public final class UpdateChecker {
             .connectTimeout(Duration.ofSeconds(4))
             .build();
 
-    private static final String PREFIX = "<dark_gray>[<yellow>ReplenishPlusPlus<dark_gray>] <dark_gray>» <gray>";
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " + "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
 
@@ -38,6 +39,8 @@ public final class UpdateChecker {
     private volatile boolean updateAvailable = false;
     private volatile boolean checkCompleted  = false;
 
+    private final List<Runnable> completionActions = new CopyOnWriteArrayList<>();
+
     public UpdateChecker(Plugin plugin, boolean enabled) {
         this.plugin = plugin;
         this.enabled = enabled;
@@ -45,8 +48,16 @@ public final class UpdateChecker {
     }
 
     public boolean isEnabled()         { return enabled; }
-    public boolean isCheckCompleted()  { return checkCompleted; }
+    public boolean isCheckPending()    { return !checkCompleted; }
     public boolean isUpdateAvailable() { return updateAvailable; }
+
+    public void onCheckCompleted(Runnable action) {
+        if (checkCompleted) {
+            action.run();
+            return;
+        }
+        completionActions.add(action);
+    }
     public boolean isLocalNewer() {
         return checkCompleted && compareVersions(currentVersion, latestVersion) > 0;
     }
@@ -80,46 +91,55 @@ public final class UpdateChecker {
             case 404 -> "No releases found on GitHub.";
             default  -> "HTTP " + status;
         };
-        console(PREFIX + "<red>Update check failed: " + reason);
+        console("<red>Update check failed: " + reason);
     }
 
     private void parseLatestVersion(String body) {
         Matcher matcher = TAG_PATTERN.matcher(body);
         if (!matcher.find()) {
-            console(PREFIX + "<red>Update check failed: Malformed GitHub response.");
+            console("<red>Update check failed: Malformed GitHub response.");
             return;
         }
         latestVersion   = normalize(matcher.group(1));
         updateAvailable = compareVersions(currentVersion, latestVersion) < 0;
         checkCompleted  = true;
         logResult();
+        fireCompletionActions();
+    }
+
+    private void fireCompletionActions() {
+        List<Runnable> actions = List.copyOf(completionActions);
+        completionActions.clear();
+        for (Runnable action : actions) {
+            if (plugin.isEnabled()) {
+                Bukkit.getScheduler().runTask(plugin, action);
+            }
+        }
     }
 
     private Void handleError(Throwable error) {
-        console(PREFIX + "<red>Update check failed: <gray>Could not reach GitHub. (Network timeout or blocked connection)");
+        console("<red>Update check failed: <gray>Could not reach GitHub. <dark_gray>(<gray>"
+                + error.getClass().getSimpleName() + "<dark_gray>)");
         return null;
     }
 
     private void logResult() {
         int comparison = compareVersions(currentVersion, latestVersion);
         if (comparison < 0) {
-            console(PREFIX + "<gray>Update available: <yellow>" + latestVersion
+            console("<gray>Update available: <yellow>" + latestVersion
                     + " <gray>(you're on <white>" + currentVersion + "<gray>).");
-            console(PREFIX + "<gray>Download: <aqua>" + RELEASES_URL);
+            console("<gray>Download: <aqua>" + RELEASES_URL);
         } else if (comparison > 0) {
-            console(PREFIX + "<gray>Update Status: <light_purple>Running unreleased/dev build "
+            console("<gray>Update Status: <light_purple>Running unreleased/dev build "
                     + "<dark_gray>(<white>" + currentVersion + "<dark_gray>)");
         } else {
-            console(PREFIX + "<gray>Update Status: <green>Up to date "
+            console("<gray>Update Status: <green>Up to date "
                     + "<dark_gray>(<white>" + currentVersion + "<dark_gray>)");
         }
     }
 
     private void console(String message) {
-        if (!plugin.isEnabled()) return;
-        plugin.getServer().getAsyncScheduler().runNow(plugin, _ ->
-                Bukkit.getConsoleSender().sendMessage(MINI_MESSAGE.deserialize(message))
-        );
+        Bukkit.getConsoleSender().sendMessage(Messages.MINI_MESSAGE.deserialize(Messages.prefixed(message)));
     }
 
     private static String normalize(String version) {

@@ -1,36 +1,26 @@
 package dev.replenishplusplus.crop;
 
 import org.bukkit.Material;
-import java.util.EnumSet;
-import java.util.Set;
+import org.bukkit.Tag;
 
 public enum HarvestTool {
-    HOE,
-    AXE;
+    HOE("Hoe"),
+    AXE("Axe");
 
-    private static final Set<Material> HOES = EnumSet.of(
-            Material.WOODEN_HOE, Material.STONE_HOE, Material.IRON_HOE,
-            Material.GOLDEN_HOE, Material.DIAMOND_HOE, Material.NETHERITE_HOE,
-            Material.COPPER_HOE
-    );
-    private static final Set<Material> AXES = EnumSet.of(
-            Material.WOODEN_AXE, Material.STONE_AXE, Material.IRON_AXE,
-            Material.GOLDEN_AXE, Material.DIAMOND_AXE, Material.NETHERITE_AXE,
-            Material.COPPER_AXE
-    );
+    private final String displayName;
+
+    HarvestTool(String displayName) {
+        this.displayName = displayName;
+    }
 
     public boolean matches(Material material) {
-        if (material == null) return false;
         return switch (this) {
-            case HOE -> HOES.contains(material);
-            case AXE -> AXES.contains(material);
+            case HOE -> Tag.ITEMS_HOES.isTagged(material);
+            case AXE -> Tag.ITEMS_AXES.isTagged(material);
         };
     }
 
     public String displayName() {
-        return switch (this) {
-            case HOE -> "Hoe";
-            case AXE -> "Axe";
-        };
+        return displayName;
     }
 }

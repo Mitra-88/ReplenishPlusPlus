@@ -1,11 +1,10 @@
 name: ReplenishPlusPlus
 main: dev.replenishplusplus.ReplenishPlusPlus
 version: "${project.version}"
-api-version: "26.2"
+api-version: "26.3"
 description: "Auto-replant plugin for Paper/Purpur. You break a crop, it goes back in the ground. That's basically it. Stole the idea from Hypixel's Replenish because I got tired of replanting by hand."
 authors: [ "Mitra-88" ]
 website: "https://github.com/Mitra-88/ReplenishPlusPlus"
-folia-supported: true
 
 permissions:
   replenishplusplus.use:
@@ -32,3 +31,15 @@ permissions:
   replenishplusplus.update:
     description: Allows an admin to receive in-game update notifications on join.
     default: op
+  replenishplusplus.*:
+    description: Grants every ReplenishPlusPlus permission.
+    default: op
+    children:
+      replenishplusplus.use: true
+      replenishplusplus.toggle: true
+      replenishplusplus.toggle.global: true
+      replenishplusplus.status: true
+      replenishplusplus.reload: true
+      replenishplusplus.version: true
+      replenishplusplus.debug: true
+      replenishplusplus.update: true

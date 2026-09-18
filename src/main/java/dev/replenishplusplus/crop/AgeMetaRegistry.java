@@ -2,20 +2,16 @@ package dev.replenishplusplus.crop;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Directional;
 import org.bukkit.plugin.Plugin;
 
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
 public final class AgeMetaRegistry {
-
-    public static final List<BlockFace> COCOA_FACES = List.of(BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST);
 
     private final Map<Material, CropInfo> registry;
 
@@ -33,14 +29,11 @@ public final class AgeMetaRegistry {
     private void register(CropType crop) {
         Material material = crop.material();
         BlockData base = Bukkit.createBlockData(material);
-        if (!(base instanceof Ageable)) return;
+        if (!(base instanceof Ageable ageable)) return;
 
-        int maxAge = ((Ageable) base).getMaximumAge();
-        CropInfo info = crop.isCocoa() ? buildCocoa(base, maxAge) : buildSimple(crop, base, maxAge);
-
-        if (info != null) {
-            registry.put(material, info);
-        }
+        int maxAge = ageable.getMaximumAge();
+        CropInfo info = crop == CropType.COCOA ? buildCocoa(base, maxAge) : buildSimple(crop, base, maxAge);
+        registry.put(material, info);
     }
 
     private SimpleCropInfo buildSimple(CropType crop, BlockData base, int maxAge) {
@@ -50,27 +43,24 @@ public final class AgeMetaRegistry {
             ((Ageable) data).setAge(age);
             states[age] = data;
         }
-        boolean farmland = !crop.isNetherWart();
-        boolean soulSand = crop.isNetherWart();
-        return new SimpleCropInfo(maxAge, farmland, soulSand, states);
+        Material anchor = crop == CropType.NETHER_WART ? Material.SOUL_SAND : Material.FARMLAND;
+        return new SimpleCropInfo(maxAge, anchor, states);
     }
 
     private CocoaCropInfo buildCocoa(BlockData base, int maxAge) {
-        if (!(base instanceof Directional)) return null;
-
-        BlockData[][] states = new BlockData[maxAge + 1][COCOA_FACES.size()];
+        BlockData[][] states = new BlockData[maxAge + 1][CocoaCropInfo.FACES.size()];
         for (int age = 0; age <= maxAge; age++) {
-            for (int face = 0; face < COCOA_FACES.size(); face++) {
+            for (int face = 0; face < CocoaCropInfo.FACES.size(); face++) {
                 BlockData data = base.clone();
                 ((Ageable) data).setAge(age);
-                ((Directional) data).setFacing(COCOA_FACES.get(face));
+                ((Directional) data).setFacing(CocoaCropInfo.FACES.get(face));
                 states[age][face] = data;
             }
         }
-        return new CocoaCropInfo(maxAge, COCOA_FACES, states);
+        return new CocoaCropInfo(maxAge, states);
     }
 
     public CropInfo get(Material material) {
-        return material == null ? null : registry.get(material);
+        return registry.get(material);
     }
 }

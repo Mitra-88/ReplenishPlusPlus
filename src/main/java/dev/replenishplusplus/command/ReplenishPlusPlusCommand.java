@@ -6,22 +6,22 @@ import dev.replenishplusplus.ReplenishPlusPlus;
 import dev.replenishplusplus.config.ConfigCache;
 import dev.replenishplusplus.config.Messages;
 import dev.replenishplusplus.config.SoundEffect;
+import dev.replenishplusplus.config.SoundRegistryMapper;
 import dev.replenishplusplus.crop.CropType;
 import dev.replenishplusplus.queue.QueueStats;
 import dev.replenishplusplus.update.UpdateChecker;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import org.bukkit.Registry;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
 public final class ReplenishPlusPlusCommand {
 
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private final ReplenishPlusPlus plugin;
 
     public ReplenishPlusPlusCommand(ReplenishPlusPlus plugin) {
@@ -57,8 +57,7 @@ public final class ReplenishPlusPlusCommand {
     private int execute(CommandSourceStack source, String permission, Consumer<CommandSender> action) {
         CommandSender sender = source.getSender();
         if (!sender.hasPermission(permission)) {
-            send(sender, Messages.PREFIX + Messages.ARROW
-                    + "<red>You don't have permission to do that. " + "<dark_gray>(<gray>requires " + permission + "<dark_gray>)");
+            send(sender, Messages.prefixed("<red>You don't have permission to do that. <dark_gray>(<gray>requires " + permission + "<dark_gray>)"));
             return 0;
         }
         action.accept(sender);
@@ -67,45 +66,52 @@ public final class ReplenishPlusPlusCommand {
 
     private void sendMainMenu(CommandSender sender) {
         String version = plugin.getPluginMeta().getVersion();
-        send(sender, "");
-        send(sender, "<dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>v"
-                + version + " <dark_gray>]       <reset>");
-        send(sender, "");
-        send(sender, "<yellow>/replenishplusplus help <dark_gray>- <gray>Shows a detailed guide on how to use the plugin.");
-        send(sender, "<yellow>/replenishplusplus status <dark_gray>- <gray>Shows current settings and enabled crops.");
-        send(sender, "<yellow>/replenishplusplus reload <dark_gray>- <gray>Reloads config.yml without restarting.");
-        send(sender, "<yellow>/replenishplusplus toggle <dark_gray>- <gray>Toggles auto-replant for <i>you</i> personally.");
-        send(sender, "<yellow>/replenishplusplus toggle global <dark_gray>- <gray>Toggles auto-replant for everyone (admin).");
-        send(sender, "<yellow>/replenishplusplus version <dark_gray>- <gray>Shows version and update info.");
-        send(sender, "<yellow>/rpp <dark_gray>- <gray>Short alias for this command.");
-        send(sender, "");
-        send(sender, Messages.LINE);
+        String menu = """
+                
+                <dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>v<version> <dark_gray>]       <reset>
+                
+                <yellow>/replenishplusplus help <dark_gray>- <gray>Shows a detailed guide on how to use the plugin.
+                <yellow>/replenishplusplus status <dark_gray>- <gray>Shows current settings and enabled crops.
+                <yellow>/replenishplusplus reload <dark_gray>- <gray>Reloads config.yml without restarting.
+                <yellow>/replenishplusplus toggle <dark_gray>- <gray>Toggles auto-replant for <i>you</i> personally.
+                <yellow>/replenishplusplus toggle global <dark_gray>- <gray>Toggles auto-replant for everyone (admin).
+                <yellow>/replenishplusplus version <dark_gray>- <gray>Shows version and update info.
+                <yellow>/rpp <dark_gray>- <gray>Short alias for this command.
+                
+                <line>""";
+        sender.sendMessage(Messages.MINI_MESSAGE.deserialize(menu,
+                Placeholder.parsed("version", version),
+                Placeholder.parsed("line", Messages.LINE)));
     }
 
     private void sendHelp(CommandSender sender) {
-        send(sender, "");
-        send(sender, "<dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>Help Guide <dark_gray>]       <reset>");
-        send(sender, "");
-        send(sender, "<yellow>How it works:");
-        send(sender, "  " + Messages.DOT + "<gray>Use a <white>Hoe <gray>for normal crops, or an <white>Axe <gray>for Cocoa.");
-        send(sender, "  " + Messages.DOT + "<gray>Break the crop, and it will auto-replant instantly.");
-        send(sender, "  " + Messages.DOT + "<gray>If seeds are required, 1 seed is taken from your inventory.");
-        send(sender, "  " + Messages.DOT + "<gray>Use <white>/rpp toggle <gray>to turn auto-replant off for yourself.");
-        send(sender, "");
-        send(sender, "<yellow><bold>Pro Tip:");
-        send(sender, "  " + Messages.DOT + "<gray>It is best to have at least <white>4x <gray>of the seed of the crop to");
-        send(sender, "    <gray>avoid replanting it too fast and running out, making it think");
-        send(sender, "    <gray>you don't have enough seeds!");
-        send(sender, "");
-        send(sender, "<yellow>Commands:");
-        send(sender, "  " + Messages.DOT + "<white>/rpp status <dark_gray>- <gray>Shows current settings and enabled crops.");
-        send(sender, "  " + Messages.DOT + "<white>/rpp reload <dark_gray>- <gray>Reloads config.yml without restarting.");
-        send(sender, "  " + Messages.DOT + "<white>/rpp toggle <dark_gray>- <gray>Toggles auto-replant for you personally.");
-        send(sender, "  " + Messages.DOT + "<white>/rpp toggle global <dark_gray>- <gray>Toggles auto-replant for everyone.");
-        send(sender, "  " + Messages.DOT + "<white>/rpp version <dark_gray>- <gray>Shows version and update info.");
-        send(sender, "  " + Messages.DOT + "<white>/rpp debug queue <dark_gray>- <gray>Shows replant queue statistics.");
-        send(sender, "");
-        send(sender, Messages.LINE);
+        String help = """
+                
+                <dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>Help Guide <dark_gray>]       <reset>
+                
+                <yellow>How it works:
+                  <dot><gray>Use a <white>Hoe <gray>for normal crops, or an <white>Axe <gray>for Cocoa.
+                  <dot><gray>Break the crop, and it will auto-replant instantly.
+                  <dot><gray>If seeds are required, 1 seed is taken from your inventory.
+                  <dot><gray>Use <white>/rpp toggle <gray>to turn auto-replant off for yourself.
+                
+                <yellow><bold>Pro Tip:
+                  <dot><gray>It is best to have at least <white>4x <gray>of the seed of the crop to
+                    <gray>avoid replanting it too fast and running out, making it think
+                    <gray>you don't have enough seeds!
+                
+                <yellow>Commands:
+                  <dot><white>/rpp status <dark_gray>- <gray>Shows current settings and enabled crops.
+                  <dot><white>/rpp reload <dark_gray>- <gray>Reloads config.yml without restarting.
+                  <dot><white>/rpp toggle <dark_gray>- <gray>Toggles auto-replant for you personally.
+                  <dot><white>/rpp toggle global <dark_gray>- <gray>Toggles auto-replant for everyone (admin).
+                  <dot><white>/rpp version <dark_gray>- <gray>Shows version and update info.
+                  <dot><white>/rpp debug queue <dark_gray>- <gray>Shows replant queue statistics.
+                
+                <line>""";
+        sender.sendMessage(Messages.MINI_MESSAGE.deserialize(help,
+                Placeholder.parsed("dot", Messages.DOT),
+                Placeholder.parsed("line", Messages.LINE)));
     }
 
     private void handlePersonalToggle(CommandSender sender) {
@@ -125,10 +131,8 @@ public final class ReplenishPlusPlusCommand {
         boolean nowEnabled = !plugin.isEnabledGlobally();
         plugin.setGloballyEnabled(nowEnabled);
 
-        plugin.getServer().getGlobalRegionScheduler().execute(plugin, () -> {
-            plugin.getConfig().set("enabled", nowEnabled);
-            plugin.saveConfig();
-        });
+        plugin.getConfig().set("enabled", nowEnabled);
+        plugin.saveConfig();
 
         String state  = nowEnabled ? "<green><bold>ENABLED" : "<red><bold>DISABLED";
         String detail = nowEnabled
@@ -140,75 +144,78 @@ public final class ReplenishPlusPlusCommand {
     private void handleReload(CommandSender sender) {
         send(sender, "<gray>Reloading configuration...");
 
-        plugin.getServer().getGlobalRegionScheduler().execute(plugin, () -> {
-            plugin.reloadLocalConfig();
-            ConfigCache cfg = plugin.getConfigCache();
+        List<String> issues = plugin.reloadLocalConfig();
+        ConfigCache cfg = plugin.getConfigCache();
 
-            send(sender, "");
-            send(sender, "<dark_gray>      [ <yellow><bold>Config Reloaded <dark_gray>]       <reset>");
-            send(sender, "");
-            send(sender, "  " + Messages.DOT + "<gray>Replanting: " + onOff(cfg.enabled()));
-            send(sender, "  " + Messages.DOT + "<gray>Replant delay: <white>" + cfg.replantDelayTicks() + " tick(s)");
-            send(sender, "  " + Messages.DOT + "<gray>Replants per tick: <white>" + cfg.maxReplantsPerTick());
-            send(sender, "  " + Messages.DOT + "<gray>Queue capacity: <white>" + cfg.maxReplantsQueued());
-            send(sender, "  " + Messages.DOT + "<gray>Give drops directly to player: " + yesNo(cfg.directPickup(), "No, drop on ground"));
-            send(sender, "  " + Messages.DOT + "<gray>Require a seed to replant: " + yesNo(cfg.requirePlayerSeed(), "No"));
-            send(sender, "  " + Messages.DOT + "<gray>Sneak to bypass: " + yesNo(cfg.sneakToBypass(), "No"));
-            send(sender, "  " + Messages.DOT + "<gray>Message style: <white>" + cfg.messageStyle());
-            send(sender, "  " + Messages.DOT + "<gray>Sounds: <white>" + countEnabledSounds(cfg) + "/5 <gray>enabled");
-            send(sender, "");
-            send(sender, "<gray>Your config.yml changes are now live.");
-            send(sender, "");
-            send(sender, Messages.LINE);
-        });
+        var sb = new StringBuilder();
+        sb.append("\n<dark_gray>      [ <yellow><bold>Config Reloaded <dark_gray>]       <reset>\n\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replanting: ").append(onOff(cfg.enabled())).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replant delay: <white>").append(cfg.replantDelayTicks()).append(" tick(s)\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replants per tick: <white>").append(cfg.maxReplantsPerTick()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Queue capacity: <white>").append(cfg.maxReplantsQueued()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Give drops directly to player: ").append(yesNo(cfg.directPickup(), "No, drop on ground")).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Require a seed to replant: ").append(yesNo(cfg.requirePlayerSeed(), "No")).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Sneak to bypass: ").append(yesNo(cfg.sneakToBypass(), "No")).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Message style: <white>").append(cfg.messageStyle()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Sounds: <white>").append(countEnabledSounds(cfg)).append("/5 <gray>enabled\n");
+        if (issues.isEmpty()) {
+            sb.append("  ").append(Messages.DOT).append("<green>✔ <gray>No config issues found.\n\n");
+        } else {
+            sb.append("  ").append(Messages.DOT).append("<yellow>⚠ <gray>Config issues (<white>").append(issues.size()).append("<gray>):\n");
+            for (String issue : issues) {
+                sb.append("    <dark_gray>- <gray>").append(sanitize(issue)).append("\n");
+            }
+            sb.append("\n");
+        }
+        sb.append("<gray>Your config.yml changes are now live.\n\n");
+        sb.append(Messages.LINE);
+
+        send(sender, sb.toString());
+    }
+
+    private static String sanitize(String text) {
+        return text.replace("<", "\\<");
     }
 
     private void sendStatus(CommandSender sender) {
         ConfigCache cfg = plugin.getConfigCache();
         String version = plugin.getPluginMeta().getVersion();
 
-        send(sender, "");
-        send(sender, "<dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>v" + version + " <dark_gray>]       <reset>");
-        send(sender, "");
-        send(sender, cfg.enabled()
-                ? "<green>✔ <white>Replanting is active"
-                : "<red>✘ <white>Replanting is disabled");
-        send(sender, cfg.requirePlayerSeed()
-                ? "<green>✔ <white>Players must have a spare seed to replant"
-                : "<red>✘ <white>No seed needed to replant");
-        send(sender, cfg.directPickup()
-                ? "<green>✔ <white>Harvested crops go straight to inventory"
-                : "<red>✘ <white>Harvested crops drop on the ground");
-        send(sender, cfg.sneakToBypass()
-                ? "<green>✔ <white>Sneaking bypasses auto-replant"
-                : "<red>✘ <white>Sneaking does not bypass");
-        send(sender, "");
+        var sb = new StringBuilder();
+        sb.append("\n<dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>v").append(version).append(" <dark_gray>]       <reset>\n\n");
+        sb.append(cfg.enabled()
+                ? "  <green>✔ <white>Replanting is active\n"
+                : "  <red>✘ <white>Replanting is disabled\n");
+        sb.append(cfg.requirePlayerSeed()
+                ? "  <green>✔ <white>Players must have a spare seed to replant\n"
+                : "  <red>✘ <white>No seed needed to replant\n");
+        sb.append(cfg.directPickup()
+                ? "  <green>✔ <white>Harvested crops go straight to inventory\n"
+                : "  <red>✘ <white>Harvested crops drop on the ground\n");
+        sb.append(cfg.sneakToBypass()
+                ? "  <green>✔ <white>Sneaking bypasses auto-replant\n\n"
+                : "  <red>✘ <white>Sneaking does not bypass\n\n");
 
-        send(sender, "<yellow>Timing");
-        send(sender, "  " + Messages.DOT + "<gray>Replants after: <white>" + cfg.replantDelayTicks() + " tick(s)");
-        send(sender, "  " + Messages.DOT + "<gray>Replants per tick: <white>" + cfg.maxReplantsPerTick());
-        send(sender, "  " + Messages.DOT + "<gray>Queue capacity: <white>" + cfg.maxReplantsQueued());
-        send(sender, "");
+        sb.append("<yellow>Timing\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replants after: <white>").append(cfg.replantDelayTicks()).append(" tick(s)\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replants per tick: <white>").append(cfg.maxReplantsPerTick()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Queue capacity: <white>").append(cfg.maxReplantsQueued()).append("\n\n");
 
-        send(sender, "<yellow>Crops that auto-replant");
-        send(sender, "");
+        sb.append("<yellow>Crops that auto-replant\n\n");
         for (CropType crop : CropType.values()) {
             boolean on = plugin.isCropEnabled(crop);
-            send(sender, "  " + (on ? "<green>✔" : "<red>✖") + " <gray>" + cropDisplayName(crop));
+            sb.append("  ").append(on ? "<green>✔" : "<red>✘").append(" <gray>").append(crop.displayName()).append("\n");
         }
-        send(sender, "");
+        sb.append("\n<yellow>Sounds\n");
+        appendSoundLine(sb, "Pickup",          cfg.pickupSound());
+        appendSoundLine(sb, "Inventory full",  cfg.inventoryFullSound());
+        appendSoundLine(sb, "Denied (tool)",   cfg.deniedToolSound());
+        appendSoundLine(sb, "Denied (seed)",   cfg.deniedSeedSound());
+        appendSoundLine(sb, "Replant failed",  cfg.replantFailedSound());
+        sb.append("\n<gray>Tip: <dark_gray>/<gray>rpp reload <gray>after editing config.yml.\n\n");
+        sb.append(Messages.LINE);
 
-        send(sender, "<yellow>Sounds");
-        appendSoundLine(sender, "Pickup",          cfg.pickupSound());
-        appendSoundLine(sender, "Inventory full",  cfg.inventoryFullSound());
-        appendSoundLine(sender, "Denied (tool)",   cfg.deniedToolSound());
-        appendSoundLine(sender, "Denied (seed)",   cfg.deniedSeedSound());
-        appendSoundLine(sender, "Replant failed",  cfg.replantFailedSound());
-        send(sender, "");
-
-        send(sender, "<gray>Tip: <dark_gray>/<gray>rpp reload <gray>after editing config.yml.");
-        send(sender, "");
-        send(sender, Messages.LINE);
+        send(sender, sb.toString());
     }
 
     private void handleDebugQueue(CommandSender sender) {
@@ -217,85 +224,69 @@ public final class ReplenishPlusPlusCommand {
                 ? 100.0 * stats.pendingCount() / stats.maxPoolSize()
                 : 0.0;
 
-        send(sender, "");
-        send(sender, "<dark_gray>      [ <yellow><bold>Queue Debug <dark_gray>]       <reset>");
-        send(sender, "");
-        send(sender, "  " + Messages.DOT + "<gray>Pending replants: <white>" + stats.pendingCount());
-        send(sender, "  " + Messages.DOT + "<gray>Pool size: <white>" + stats.currentPoolSize()
-                + "<dark_gray>/<white>" + stats.maxPoolSize());
-        send(sender, "  " + Messages.DOT + "<gray>Capacity used: <white>"
-                + String.format(Locale.ROOT, "%.1f%%", usagePercent));
-        send(sender, "");
+        var sb = new StringBuilder();
+        sb.append("\n<dark_gray>      [ <yellow><bold>Queue Debug <dark_gray>]       <reset>\n\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Pending replants: <white>").append(stats.pendingCount()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Pool size: <white>").append(stats.currentPoolSize())
+                .append("<dark_gray>/<white>").append(stats.maxPoolSize()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Capacity used: <white>")
+                .append(String.format(Locale.ROOT, "%.1f%%", usagePercent)).append("\n\n");
         if (stats.pendingCount() > stats.maxPoolSize() / 2) {
-            send(sender, "  " + Messages.DOT + "<yellow>⚠ <gray>Queue is over 50% full — consider raising maxReplantsQueued.");
+            sb.append("  ").append(Messages.DOT).append("<yellow>⚠ <gray>Queue is over 50% full — consider raising maxReplantsQueued.\n\n");
         } else {
-            send(sender, "  " + Messages.DOT + "<green>✔ <gray>Queue is healthy.");
+            sb.append("  ").append(Messages.DOT).append("<green>✔ <gray>Queue is healthy.\n\n");
         }
-        send(sender, "");
-        send(sender, Messages.LINE);
+        sb.append(Messages.LINE);
+
+        send(sender, sb.toString());
     }
 
     private void sendVersion(CommandSender sender) {
-        send(sender, "");
-        send(sender, "<dark_gray>      [ <yellow><bold>Version Info <dark_gray>]       <reset>");
-        send(sender, "");
-
         UpdateChecker uc = plugin.getUpdateChecker();
         String runningVersion = "v" + plugin.getPluginMeta().getVersion();
 
+        var sb = new StringBuilder();
+        sb.append("\n<dark_gray>      [ <yellow><bold>Version Info <dark_gray>]       <reset>\n\n");
+
         if (uc == null || !uc.isEnabled()) {
-            send(sender, "  " + Messages.DOT + "<gray>You're running: <white>" + runningVersion);
-            send(sender, "  " + Messages.DOT + "<gray>Update checks: <red>Disabled in config.yml");
-        } else if (!uc.isCheckCompleted()) {
-            send(sender, "  " + Messages.DOT + "<gray>You're running: <white>" + runningVersion);
-            send(sender, "  " + Messages.DOT + "<gray>Update check: <white>Still checking, try again shortly");
+            sb.append("  ").append(Messages.DOT).append("<gray>You're running: <white>").append(runningVersion).append("\n");
+            sb.append("  ").append(Messages.DOT).append("<gray>Update checks: <red>Disabled in config.yml\n");
+        } else if (uc.isCheckPending()) {
+            sb.append("  ").append(Messages.DOT).append("<gray>You're running: <white>").append(runningVersion).append("\n");
+            sb.append("  ").append(Messages.DOT).append("<gray>Update check: <white>Still checking, try again shortly\n");
         } else if (uc.isUpdateAvailable()) {
-            send(sender, "  " + Messages.DOT + "<yellow>A new version is available! <dark_gray>(<white>v"
-                    + uc.getCurrentVersion() + " <gray>➟ <yellow>v" + uc.getLatestVersion() + "<dark_gray>)");
-            send(sender, "  " + Messages.DOT +
-                    "<gray>Download: <aqua><click:open_url:'https://github.com/Mitra-88/ReplenishPlusPlus/releases/latest'><hover:show_text:'<gray>Click to open release page'><u>github.com/Mitra-88/ReplenishPlusPlus</u></click>");
+            sb.append("  ").append(Messages.DOT).append("<yellow>A new version is available! <dark_gray>(<white>v")
+                    .append(uc.getCurrentVersion()).append(" <gray>➔ <yellow>v").append(uc.getLatestVersion()).append("<dark_gray>)\n");
+            sb.append("  ").append(Messages.DOT)
+                    .append("<gray>Download: <aqua><click:open_url:'").append(UpdateChecker.RELEASES_URL)
+                    .append("'><hover:show_text:'<gray>Click to open release page'><u>github.com/Mitra-88/ReplenishPlusPlus</u></click>\n");
         } else if (uc.isLocalNewer()) {
-            send(sender,
-                    "  " + Messages.DOT
-                            + "<light_purple>You're using a development build\n"
-                            + "    <dark_gray>• <gray>Current: <white>v" + uc.getCurrentVersion() + "\n"
-                            + "    <dark_gray>• <gray>Latest release: <white>v" + uc.getLatestVersion() + "\n"
-                            + "    <dark_gray>• <light_purple>Your build is newer than the latest public release.");
+            sb.append("  ").append(Messages.DOT).append("<light_purple>You're using a development build\n")
+                    .append("    <dark_gray>• <gray>Current: <white>v").append(uc.getCurrentVersion()).append("\n")
+                    .append("    <dark_gray>• <gray>Latest release: <white>v").append(uc.getLatestVersion()).append("\n")
+                    .append("    <dark_gray>• <light_purple>Your build is newer than the latest public release.\n");
         } else {
-            send(sender, "  " + Messages.DOT + "<green>You're up to date! <dark_gray>(<white>v"
-                    + uc.getCurrentVersion() + "<dark_gray>)");
+            sb.append("  ").append(Messages.DOT).append("<green>You're up to date! <dark_gray>(<white>v")
+                    .append(uc.getCurrentVersion()).append("<dark_gray>)\n");
         }
 
-        send(sender, "");
-        send(sender, "<gray>Server details");
-        send(sender, "  " + Messages.DOT + "<gray>Server: <white>" + plugin.getServer().getVersion());
-        send(sender, "  " + Messages.DOT + "<gray>Java: <white>" + System.getProperty("java.version")
-                + " <dark_gray>(<gray>" + System.getProperty("java.vendor") + "<dark_gray>)");
-        send(sender, "");
-        send(sender, Messages.LINE);
+        sb.append("\n<gray>Server details\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Server: <white>").append(plugin.getServer().getVersion()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Java: <white>").append(System.getProperty("java.version"))
+                .append(" <dark_gray>(<gray>").append(System.getProperty("java.vendor")).append("<dark_gray>)\n\n");
+        sb.append(Messages.LINE);
+
+        send(sender, sb.toString());
     }
 
-    private void appendSoundLine(CommandSender sender, String label, SoundEffect sound) {
-        if (sound == null || !sound.enabled()) {
-            send(sender, "  " + Messages.DOT + "<gray>" + label + ": <red>DISABLED");
+    private void appendSoundLine(StringBuilder sb, String label, SoundEffect sound) {
+        if (!sound.enabled()) {
+            sb.append("  ").append(Messages.DOT).append("<gray>").append(label).append(": <red>DISABLED\n");
             return;
         }
-        var key = Registry.SOUNDS.getKey(sound.sound());
-        String soundName = key != null ? key.asString() : "UNKNOWN";
-        send(sender, "  " + Messages.DOT + "<gray>" + label + ": <green>" + soundName
-                + " <dark_gray>(<gray>vol <white>" + formatFloat(sound.volume())
-                + "<dark_gray>, <gray>pitch <white>" + formatFloat(sound.pitch()) + "<dark_gray>)");
-    }
-
-    private static String cropDisplayName(CropType crop) {
-        return switch (crop) {
-            case WHEAT       -> "Wheat";
-            case CARROTS     -> "Carrots";
-            case POTATOES    -> "Potatoes";
-            case NETHER_WART -> "Nether Wart";
-            case COCOA       -> "Cocoa";
-            case BEETROOTS   -> "Beetroots";
-        };
+        sb.append("  ").append(Messages.DOT).append("<gray>").append(label).append(": <green>").append(SoundRegistryMapper.keyName(sound.sound()))
+                .append(" <dark_gray>(<gray>vol <white>").append(formatFloat(sound.volume()))
+                .append("<dark_gray>, <gray>pitch <white>").append(formatFloat(sound.pitch())).append("<dark_gray>)\n");
     }
 
     private static String formatFloat(float value) {
@@ -312,23 +303,19 @@ public final class ReplenishPlusPlusCommand {
 
     private static int countEnabledSounds(ConfigCache cfg) {
         int count = 0;
-        if (isEnabled(cfg.pickupSound()))         count++;
-        if (isEnabled(cfg.inventoryFullSound()))  count++;
-        if (isEnabled(cfg.deniedToolSound()))     count++;
-        if (isEnabled(cfg.deniedSeedSound()))     count++;
-        if (isEnabled(cfg.replantFailedSound()))  count++;
+        if (cfg.pickupSound().enabled())         count++;
+        if (cfg.inventoryFullSound().enabled())  count++;
+        if (cfg.deniedToolSound().enabled())     count++;
+        if (cfg.deniedSeedSound().enabled())     count++;
+        if (cfg.replantFailedSound().enabled())  count++;
         return count;
     }
 
-    private static boolean isEnabled(SoundEffect sound) {
-        return sound != null && sound.enabled();
-    }
-
     private static void send(CommandSender sender, String message) {
-        sender.sendMessage(MINI_MESSAGE.deserialize(message));
+        sender.sendMessage(Messages.MINI_MESSAGE.deserialize(message));
     }
 
     private static void sendPrefixed(CommandSender sender, String message) {
-        send(sender, Messages.PREFIX + message);
+        send(sender, Messages.prefixed(message));
     }
 }

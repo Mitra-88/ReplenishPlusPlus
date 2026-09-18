@@ -1,5 +1,8 @@
 package dev.replenishplusplus.config;
 
+import net.kyori.adventure.text.Component;
+import org.bukkit.entity.Player;
+
 import java.util.Locale;
 
 public enum MessageStyle {
@@ -7,12 +10,21 @@ public enum MessageStyle {
     ACTION_BAR,
     NONE;
 
-    public static MessageStyle from(String value) {
+    public void send(Player player, Component component) {
+        switch (this) {
+            case CHAT -> player.sendMessage(component);
+            case ACTION_BAR -> player.sendActionBar(component);
+            case NONE -> {}
+        }
+    }
+
+    public static MessageStyle parse(String value) {
         if (value == null) return CHAT;
         return switch (value.trim().toUpperCase(Locale.ROOT)) {
+            case "CHAT" -> CHAT;
             case "ACTION_BAR" -> ACTION_BAR;
-            case "NONE"       -> NONE;
-            default           -> CHAT;
+            case "NONE" -> NONE;
+            default -> null;
         };
     }
 }

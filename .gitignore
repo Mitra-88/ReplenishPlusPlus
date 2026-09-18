@@ -8,6 +8,9 @@
 # IntelliJ
 out/
 
+/docs-for-agents/
+.zcode/
+
 # Compiled class file
 *.class
 

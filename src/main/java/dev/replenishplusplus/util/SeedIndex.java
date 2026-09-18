@@ -19,12 +19,21 @@ public final class SeedIndex {
     private SeedIndex() {}
 
     public static void invalidate(Player player) {
-        if (player != null) cacheByPlayer.remove(player.getUniqueId());
+        cacheByPlayer.remove(player.getUniqueId());
+    }
+
+    public static boolean hasSeed(Player player, Material seedMaterial) {
+        Map<Material, Integer> cache = cacheByPlayer.get(player.getUniqueId());
+        Integer slot = cache == null ? null : cache.get(seedMaterial);
+        if (slot == null || slot == SLOT_NONE) {
+            cache = buildIndex(player.getInventory());
+            cacheByPlayer.put(player.getUniqueId(), cache);
+            slot = cache.get(seedMaterial);
+        }
+        return slot != null && slot != SLOT_NONE;
     }
 
     public static boolean consume(Player player, Material seedMaterial) {
-        if (player == null || seedMaterial == null || seedMaterial.isAir() || !seedMaterial.isItem()) return false;
-
         PlayerInventory inventory = player.getInventory();
         Map<Material, Integer> cache = cacheByPlayer.computeIfAbsent(player.getUniqueId(), _ -> new HashMap<>());
 
@@ -41,7 +50,6 @@ public final class SeedIndex {
             return tryConsume(inventory, cache, seedMaterial, refreshed);
         }
 
-        cache.put(seedMaterial, SLOT_NONE);
         return false;
     }
 

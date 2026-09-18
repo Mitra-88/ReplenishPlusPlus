@@ -4,25 +4,22 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 
 public final class WarningThrottle {
 
     private static final long SUPPRESS_DURATION_MS = 3000L;
-    private static final Map<String, State> STATES = new ConcurrentHashMap<>();
+    private static final Map<Category, State> STATES = new ConcurrentHashMap<>();
 
     private WarningThrottle() {}
 
     public enum Category {
-        ABANDONED_REPLANT  ("abandoned_replant"),
-        REPLANT_FAILED     ("replant_failed"),
-        AGE_DATA_MISSING   ("age_data_missing"),
-        DELAY_TRUNCATION   ("delay_truncation"),
-        QUEUE_BACKPRESSURE ("queue_backpressure");
-
-        private final String key;
-        Category(String key) { this.key = key; }
-        public String key() { return key; }
+        ABANDONED_REPLANT,
+        REPLANT_FAILED,
+        AGE_DATA_MISSING,
+        DELAY_TRUNCATION,
+        QUEUE_BACKPRESSURE
     }
 
     private static final class State {
@@ -31,8 +28,12 @@ public final class WarningThrottle {
         int suppressedCount = 0;
     }
 
-    public static void log(Plugin plugin, Level level, Category category, String message) {
-        State state = STATES.computeIfAbsent(category.key(), _ -> new State());
+    public static void log(Plugin plugin, Level level, Category category, Supplier<String> message) {
+        log(plugin, level, category, message, null);
+    }
+
+    public static void log(Plugin plugin, Level level, Category category, Supplier<String> message, Throwable error) {
+        State state = STATES.computeIfAbsent(category, _ -> new State());
         synchronized (state) {
             long now = System.currentTimeMillis();
             if (now - state.lastLogTime < SUPPRESS_DURATION_MS) {
@@ -40,9 +41,11 @@ public final class WarningThrottle {
                 return;
             }
             flushSuppressed(plugin, level, state);
-            state.lastMessage = message;
+            String resolved = message.get();
+            state.lastMessage = resolved;
             state.lastLogTime = now;
-            plugin.getLogger().log(level, message);
+            if (error == null) plugin.getLogger().log(level, resolved);
+            else plugin.getLogger().log(level, resolved, error);
         }
     }
 
