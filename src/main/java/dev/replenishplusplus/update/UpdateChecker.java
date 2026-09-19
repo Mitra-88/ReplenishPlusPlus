@@ -9,8 +9,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,8 +38,9 @@ public final class UpdateChecker {
     private volatile String  latestVersion   = "Unknown";
     private volatile boolean updateAvailable = false;
     private volatile boolean checkCompleted  = false;
+    private volatile boolean checkFailed     = false;
 
-    private final List<Runnable> completionActions = new CopyOnWriteArrayList<>();
+    private final List<Runnable> completionActions = new ArrayList<>();
 
     public UpdateChecker(Plugin plugin, boolean enabled) {
         this.plugin = plugin;
@@ -49,9 +50,10 @@ public final class UpdateChecker {
 
     public boolean isEnabled()         { return enabled; }
     public boolean isCheckPending()    { return !checkCompleted; }
+    public boolean isCheckFailed()     { return checkFailed; }
     public boolean isUpdateAvailable() { return updateAvailable; }
 
-    public void onCheckCompleted(Runnable action) {
+    public synchronized void onCheckCompleted(Runnable action) {
         if (checkCompleted) {
             action.run();
             return;
@@ -59,7 +61,7 @@ public final class UpdateChecker {
         completionActions.add(action);
     }
     public boolean isLocalNewer() {
-        return checkCompleted && compareVersions(currentVersion, latestVersion) > 0;
+        return checkCompleted && !checkFailed && compareVersions(currentVersion, latestVersion) > 0;
     }
     public String getCurrentVersion()  { return currentVersion; }
     public String getLatestVersion()   { return latestVersion; }
@@ -91,12 +93,14 @@ public final class UpdateChecker {
             case 404 -> "No releases found on GitHub.";
             default  -> "HTTP " + status;
         };
+        failCheck();
         console("<red>Update check failed: " + reason);
     }
 
     private void parseLatestVersion(String body) {
         Matcher matcher = TAG_PATTERN.matcher(body);
         if (!matcher.find()) {
+            failCheck();
             console("<red>Update check failed: Malformed GitHub response.");
             return;
         }
@@ -107,8 +111,14 @@ public final class UpdateChecker {
         fireCompletionActions();
     }
 
-    private void fireCompletionActions() {
-        List<Runnable> actions = List.copyOf(completionActions);
+    private void failCheck() {
+        checkFailed = true;
+        checkCompleted = true;
+    }
+
+    private synchronized void fireCompletionActions() {
+        if (completionActions.isEmpty()) return;
+        List<Runnable> actions = new ArrayList<>(completionActions);
         completionActions.clear();
         for (Runnable action : actions) {
             if (plugin.isEnabled()) {
@@ -118,6 +128,7 @@ public final class UpdateChecker {
     }
 
     private Void handleError(Throwable error) {
+        failCheck();
         console("<red>Update check failed: <gray>Could not reach GitHub. <dark_gray>(<gray>"
                 + error.getClass().getSimpleName() + "<dark_gray>)");
         return null;

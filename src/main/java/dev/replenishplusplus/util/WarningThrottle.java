@@ -2,15 +2,15 @@ package dev.replenishplusplus.util;
 
 import org.bukkit.plugin.Plugin;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
 public final class WarningThrottle {
 
     private static final long SUPPRESS_DURATION_MS = 3000L;
-    private static final Map<Category, State> STATES = new ConcurrentHashMap<>();
+    private static final Map<Category, State> STATES = new HashMap<>();
 
     private WarningThrottle() {}
 
@@ -34,19 +34,17 @@ public final class WarningThrottle {
 
     public static void log(Plugin plugin, Level level, Category category, Supplier<String> message, Throwable error) {
         State state = STATES.computeIfAbsent(category, _ -> new State());
-        synchronized (state) {
-            long now = System.currentTimeMillis();
-            if (now - state.lastLogTime < SUPPRESS_DURATION_MS) {
-                state.suppressedCount++;
-                return;
-            }
-            flushSuppressed(plugin, level, state);
-            String resolved = message.get();
-            state.lastMessage = resolved;
-            state.lastLogTime = now;
-            if (error == null) plugin.getLogger().log(level, resolved);
-            else plugin.getLogger().log(level, resolved, error);
+        long now = System.currentTimeMillis();
+        if (now - state.lastLogTime < SUPPRESS_DURATION_MS) {
+            state.suppressedCount++;
+            return;
         }
+        flushSuppressed(plugin, level, state);
+        String resolved = message.get();
+        state.lastMessage = resolved;
+        state.lastLogTime = now;
+        if (error == null) plugin.getLogger().log(level, resolved);
+        else plugin.getLogger().log(level, resolved, error);
     }
 
     private static void flushSuppressed(Plugin plugin, Level level, State state) {

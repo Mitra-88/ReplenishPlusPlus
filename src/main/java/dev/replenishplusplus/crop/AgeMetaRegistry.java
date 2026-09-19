@@ -10,18 +10,21 @@ import org.bukkit.plugin.Plugin;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public final class AgeMetaRegistry {
 
+    private final Logger logger;
     private final Map<Material, CropInfo> registry;
 
     public AgeMetaRegistry(Plugin plugin) {
+        this.logger = plugin.getLogger();
         this.registry = new EnumMap<>(Material.class);
         for (CropType crop : CropType.values()) {
             try {
                 register(crop);
-            } catch (Throwable error) {
-                plugin.getLogger().log(Level.WARNING, "Age meta scan skipped for " + crop.material(), error);
+            } catch (Exception error) {
+                logger.log(Level.WARNING, "Age meta scan skipped for " + crop.material(), error);
             }
         }
     }
@@ -29,7 +32,10 @@ public final class AgeMetaRegistry {
     private void register(CropType crop) {
         Material material = crop.material();
         BlockData base = Bukkit.createBlockData(material);
-        if (!(base instanceof Ageable ageable)) return;
+        if (!(base instanceof Ageable ageable)) {
+            logger.warning(material + " is not an ageable block - " + crop.displayName() + " will not auto-replant.");
+            return;
+        }
 
         int maxAge = ageable.getMaximumAge();
         CropInfo info = crop == CropType.COCOA ? buildCocoa(base, maxAge) : buildSimple(crop, base, maxAge);

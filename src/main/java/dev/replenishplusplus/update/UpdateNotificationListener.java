@@ -13,23 +13,22 @@ public final class UpdateNotificationListener implements Listener {
 
     public UpdateNotificationListener(ReplenishPlusPlus plugin) {
         this.plugin = plugin;
-        UpdateChecker uc = plugin.getUpdateChecker();
-        if (uc != null && uc.isEnabled()) {
-            uc.onCheckCompleted(this::notifyOnlineOps);
+        if (plugin.getUpdateChecker().isEnabled()) {
+            plugin.getUpdateChecker().onCheckCompleted(this::notifyOnlineOps);
         }
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         UpdateChecker uc = plugin.getUpdateChecker();
-        if (uc == null || !uc.isEnabled() || uc.isCheckPending()) return;
+        if (!uc.isEnabled() || uc.isCheckPending() || uc.isCheckFailed()) return;
         if (!event.getPlayer().hasPermission("replenishplusplus.update")) return;
         notify(event.getPlayer(), uc);
     }
 
     private void notifyOnlineOps() {
         UpdateChecker uc = plugin.getUpdateChecker();
-        if (uc == null || !uc.isUpdateAvailable()) return;
+        if (!uc.isUpdateAvailable()) return;
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.hasPermission("replenishplusplus.update")) notify(player, uc);
         }

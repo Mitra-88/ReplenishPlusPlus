@@ -17,6 +17,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -87,6 +88,16 @@ public final class ReplenishPlusPlus extends JavaPlugin {
             return List.copyOf(issues);
         }
 
+        // YamlConfiguration swallows parse errors and returns an empty config; with the
+        // bundled defaults layered in, every read would silently fall back to defaults.
+        // Detect that and keep the previous settings instead.
+        if (isConfigFileBroken()) {
+            String issue = "config.yml is empty or could not be parsed (invalid YAML?) - keeping previous settings";
+            getLogger().warning("[Config] " + issue);
+            issues.add(issue);
+            return List.copyOf(issues);
+        }
+
         ConfigCache cache = ConfigCache.from(getConfig(), issues);
         for (String issue : issues) {
             getLogger().warning("[Config] " + issue);
@@ -111,6 +122,16 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         }
     }
 
+    /**
+     * True when config.yml exists but parsed to no settings (empty or invalid YAML).
+     * YamlConfiguration swallows parse errors, so an in-memory write-through here would
+     * clobber the file; callers must not persist config state in this state.
+     */
+    public boolean isConfigFileBroken() {
+        File configFile = new File(getDataFolder(), "config.yml");
+        return configFile.isFile() && getConfig().getKeys(false).isEmpty();
+    }
+
     public UpdateChecker getUpdateChecker() { return updateChecker; }
     public PlayerToggleManager getPlayerToggleManager() { return playerToggleManager; }
 
@@ -127,15 +148,11 @@ public final class ReplenishPlusPlus extends JavaPlugin {
 
     public void enqueueReplant(Block block, int delayTicks, int targetAge,
                                BlockFace cocoaFacing, UUID playerId, boolean seedConsumed) {
-        ReplantQueue queue = this.replantQueue;
-        if (queue != null) {
-            queue.enqueue(block, delayTicks, targetAge, cocoaFacing, playerId, seedConsumed);
-        }
+        replantQueue.enqueue(block, delayTicks, targetAge, cocoaFacing, playerId, seedConsumed);
     }
 
     public QueueStats getQueueStats() {
-        ReplantQueue queue = this.replantQueue;
-        return queue != null ? queue.getStats() : new QueueStats(0, 0, 0);
+        return replantQueue.getStats();
     }
 
     private void sendConsole(String message) {

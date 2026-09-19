@@ -8,6 +8,7 @@ import dev.replenishplusplus.crop.CropType;
 import dev.replenishplusplus.crop.SimpleCropInfo;
 import dev.replenishplusplus.util.LocationUtil;
 import dev.replenishplusplus.util.WarningThrottle;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -62,6 +63,7 @@ public final class ReplantQueue {
     private World memoWorld;
     private int memoChunkX = Integer.MIN_VALUE;
     private int memoChunkZ = Integer.MIN_VALUE;
+    private int memoTick = -1;
     private boolean memoLoaded;
 
     public ReplantQueue(ReplenishPlusPlus plugin, int maxPerTick, int maxPoolSize, AgeMetaRegistry ageMetaRegistry) {
@@ -200,15 +202,15 @@ public final class ReplantQueue {
     private boolean isChunkLoadedCached(World world, int x, int z) {
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
-        if (chunkX != memoChunkX || chunkZ != memoChunkZ || world != memoWorld) {
+        int tickNow = Bukkit.getCurrentTick();
+        // The tick stamp keeps the cached answer from leaking across ticks: a chunk that
+        // (un)loads between two ticks must be re-checked, or retries act on stale state.
+        if (tickNow != memoTick || chunkX != memoChunkX || chunkZ != memoChunkZ || world != memoWorld) {
+            memoTick = tickNow;
             memoChunkX = chunkX;
             memoChunkZ = chunkZ;
             memoWorld = world;
-            try {
-                memoLoaded = world.isChunkLoaded(chunkX, chunkZ);
-            } catch (Exception e) {
-                memoLoaded = false;
-            }
+            memoLoaded = world.isChunkLoaded(chunkX, chunkZ);
         }
         return memoLoaded;
     }
@@ -249,10 +251,17 @@ public final class ReplantQueue {
     private boolean replantNormal(World world, int x, int y, int z, SimpleCropInfo info, int targetAge) {
         Block block = world.getBlockAt(x, y, z);
         if (block.getType() != Material.AIR) return false;
-        if (!info.plantsOn(world.getBlockAt(x, y - 1, z).getType())) return false;
+        if (!hasAnchor(info, world, x, y, z)) return false;
 
         block.setBlockData(info.stateFor(targetAge), false);
         return true;
+    }
+
+    private boolean hasAnchor(SimpleCropInfo info, World world, int x, int y, int z) {
+        for (BlockFace face : info.validNeighborFaces()) {
+            if (info.plantsOn(world.getBlockAt(x + face.getModX(), y + face.getModY(), z + face.getModZ()).getType())) return true;
+        }
+        return false;
     }
 
     private boolean replantCocoa(World world, int x, int y, int z, CocoaCropInfo info, int targetAge, int faceOrdinal) {
@@ -280,6 +289,8 @@ public final class ReplantQueue {
 
     private void handleFailureForUnloadedChunk(Material cropMaterial, UUID playerId, boolean seedConsumed) {
         Player player = onlinePlayer(playerId);
+        // Quit players are deliberately not refunded: the chunk is unloaded, so the only refund
+        // locations would force-load chunks - exactly what the lag caps exist to prevent.
         if (player == null) return;
 
         refundSeed(cropMaterial, seedConsumed, player.getLocation());
@@ -293,9 +304,7 @@ public final class ReplantQueue {
     }
 
     private Player onlinePlayer(UUID playerId) {
-        if (playerId == null) return null;
-        Player player = plugin.getServer().getPlayer(playerId);
-        return player != null && player.isOnline() ? player : null;
+        return playerId == null ? null : plugin.getServer().getPlayer(playerId);
     }
 
     private static ItemStack seedStack(Material cropMaterial) {

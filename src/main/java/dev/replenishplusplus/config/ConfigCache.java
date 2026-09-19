@@ -86,9 +86,9 @@ public record ConfigCache(
                 delayTicks, perTick, queued,
                 ConfigReader.boolValue(config, "checkUpdates", true, issues),
                 readCrops(config, issues),
-                config.getString("messages.inventory-full", Messages.INVENTORY_FULL_DEFAULT),
-                config.getString("messages.requires-tool", Messages.REQUIRES_TOOL_DEFAULT),
-                config.getString("messages.need-seed", Messages.NEED_SEED_DEFAULT),
+                ConfigReader.stringValue(config, "messages.inventory-full", Messages.INVENTORY_FULL_DEFAULT, issues),
+                ConfigReader.stringValue(config, "messages.requires-tool", Messages.REQUIRES_TOOL_DEFAULT, issues),
+                ConfigReader.stringValue(config, "messages.need-seed", Messages.NEED_SEED_DEFAULT, issues),
                 readSound(config, "pickup", Sound.ENTITY_ITEM_PICKUP, 1.0f, issues),
                 readSound(config, "inventory-full", Sound.BLOCK_NOTE_BLOCK_BASS, 0.5f, issues),
                 readSound(config, "denied-tool", Sound.ENTITY_VILLAGER_NO, 0.5f, issues),
@@ -114,7 +114,7 @@ public record ConfigCache(
         String path = "sounds." + key;
         boolean enabled = ConfigReader.boolValue(config, path + ".enabled", true, issues);
 
-        String soundName = config.getString(path + ".sound");
+        String soundName = ConfigReader.stringValue(config, path + ".sound", null, issues);
         Optional<Sound> resolved = SoundRegistryMapper.lookup(soundName);
         if (soundName != null && !soundName.isBlank() && resolved.isEmpty()) {
             issues.add(path + ".sound: '" + soundName + "' did not match any sound - falling back to " + SoundRegistryMapper.keyName(fallback));

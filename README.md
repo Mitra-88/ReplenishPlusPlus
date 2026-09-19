@@ -81,6 +81,8 @@ maxReplantsQueued: 4096
 checkUpdates: true
 ```
 
+> **Note:** `/rpp toggle global` writes the whole `config.yml` back from the last-loaded state. If you edited the file by hand, run `/rpp reload` first — otherwise toggling saves over your manual changes.
+
 <details>
 <summary>Full default config.yml</summary>
 
@@ -123,6 +125,7 @@ maxReplantsPerTick: 1024
 maxReplantsQueued: 4096
 
 # Should the plugin check for updates on startup and notify admins?
+# Read at startup only - /rpp reload does not apply changes to this.
 checkUpdates: true
 
 # ------------------------------------------------------------------------------

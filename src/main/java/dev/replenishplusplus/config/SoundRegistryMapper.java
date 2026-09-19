@@ -12,7 +12,7 @@ import java.util.Optional;
 public final class SoundRegistryMapper {
 
     private static final Map<String, Sound> SOUNDS = new HashMap<>();
-    private static volatile boolean loaded = false;
+    private static boolean loaded = false;
 
     private SoundRegistryMapper() {}
 
@@ -22,8 +22,7 @@ public final class SoundRegistryMapper {
         String key = canonical(input);
         if (key.isEmpty()) return Optional.empty();
 
-        if (!loaded) load();
-
+        load();
         return Optional.ofNullable(SOUNDS.get(key));
     }
 

@@ -131,14 +131,18 @@ public final class ReplenishPlusPlusCommand {
         boolean nowEnabled = !plugin.isEnabledGlobally();
         plugin.setGloballyEnabled(nowEnabled);
 
-        plugin.getConfig().set("enabled", nowEnabled);
-        plugin.saveConfig();
-
         String state  = nowEnabled ? "<green><bold>ENABLED" : "<red><bold>DISABLED";
         String detail = nowEnabled
                 ? "Crops will replant themselves again for everyone."
                 : "Crops will no longer replant. Harvests behave like vanilla.";
         sendPrefixed(sender, "Global replanting is now " + state + "<gray>. " + detail);
+
+        if (plugin.isConfigFileBroken()) {
+            sendPrefixed(sender, "<yellow>config.yml looks empty or invalid, so this toggle was not saved. Fix the file and run /rpp reload, or the change is lost on restart.");
+            return;
+        }
+        plugin.getConfig().set("enabled", nowEnabled);
+        plugin.saveConfig();
     }
 
     private void handleReload(CommandSender sender) {
@@ -157,7 +161,12 @@ public final class ReplenishPlusPlusCommand {
         sb.append("  ").append(Messages.DOT).append("<gray>Require a seed to replant: ").append(yesNo(cfg.requirePlayerSeed(), "No")).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Sneak to bypass: ").append(yesNo(cfg.sneakToBypass(), "No")).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Message style: <white>").append(cfg.messageStyle()).append("\n");
-        sb.append("  ").append(Messages.DOT).append("<gray>Sounds: <white>").append(countEnabledSounds(cfg)).append("/5 <gray>enabled\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Update checks: ").append(onOff(cfg.checkUpdates())).append(" <dark_gray>(startup only)\n");
+        List<SoundEffect> sounds = List.of(cfg.pickupSound(), cfg.inventoryFullSound(), cfg.deniedToolSound(),
+                cfg.deniedSeedSound(), cfg.replantFailedSound());
+        long enabledSounds = sounds.stream().filter(SoundEffect::enabled).count();
+        sb.append("  ").append(Messages.DOT).append("<gray>Sounds: <white>").append(enabledSounds)
+                .append("/").append(sounds.size()).append("<gray> enabled\n");
         if (issues.isEmpty()) {
             sb.append("  ").append(Messages.DOT).append("<green>✔ <gray>No config issues found.\n\n");
         } else {
@@ -220,9 +229,7 @@ public final class ReplenishPlusPlusCommand {
 
     private void handleDebugQueue(CommandSender sender) {
         QueueStats stats = plugin.getQueueStats();
-        double usagePercent = stats.maxPoolSize() > 0
-                ? 100.0 * stats.pendingCount() / stats.maxPoolSize()
-                : 0.0;
+        double usagePercent = 100.0 * stats.pendingCount() / stats.maxPoolSize();
 
         var sb = new StringBuilder();
         sb.append("\n<dark_gray>      [ <yellow><bold>Queue Debug <dark_gray>]       <reset>\n\n");
@@ -248,7 +255,7 @@ public final class ReplenishPlusPlusCommand {
         var sb = new StringBuilder();
         sb.append("\n<dark_gray>      [ <yellow><bold>Version Info <dark_gray>]       <reset>\n\n");
 
-        if (uc == null || !uc.isEnabled()) {
+        if (!uc.isEnabled()) {
             sb.append("  ").append(Messages.DOT).append("<gray>You're running: <white>").append(runningVersion).append("\n");
             sb.append("  ").append(Messages.DOT).append("<gray>Update checks: <red>Disabled in config.yml\n");
         } else if (uc.isCheckPending()) {
@@ -260,6 +267,8 @@ public final class ReplenishPlusPlusCommand {
             sb.append("  ").append(Messages.DOT)
                     .append("<gray>Download: <aqua><click:open_url:'").append(UpdateChecker.RELEASES_URL)
                     .append("'><hover:show_text:'<gray>Click to open release page'><u>github.com/Mitra-88/ReplenishPlusPlus</u></click>\n");
+        } else if (uc.isCheckFailed()) {
+            sb.append("  ").append(Messages.DOT).append("<red>Update check failed <dark_gray>(<gray>see server log for details<dark_gray>)\n");
         } else if (uc.isLocalNewer()) {
             sb.append("  ").append(Messages.DOT).append("<light_purple>You're using a development build\n")
                     .append("    <dark_gray>• <gray>Current: <white>v").append(uc.getCurrentVersion()).append("\n")
@@ -299,16 +308,6 @@ public final class ReplenishPlusPlusCommand {
 
     private static String yesNo(boolean value, String no) {
         return value ? "<green>Yes" : "<red>" + no;
-    }
-
-    private static int countEnabledSounds(ConfigCache cfg) {
-        int count = 0;
-        if (cfg.pickupSound().enabled())         count++;
-        if (cfg.inventoryFullSound().enabled())  count++;
-        if (cfg.deniedToolSound().enabled())     count++;
-        if (cfg.deniedSeedSound().enabled())     count++;
-        if (cfg.replantFailedSound().enabled())  count++;
-        return count;
     }
 
     private static void send(CommandSender sender, String message) {

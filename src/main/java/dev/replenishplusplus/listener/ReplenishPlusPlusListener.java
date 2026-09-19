@@ -24,6 +24,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.Collection;
@@ -61,7 +62,9 @@ public final class ReplenishPlusPlusListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onBlockBreakCommit(BlockBreakEvent event) {
         HarvestPlan plan = pendingHarvests.remove(event);
-        if (plan == null || event.isCancelled()) return;
+        // isDropItems true here means another plugin re-enabled drops after our suppression:
+        // they own the break now, same as a decide-phase bail-out. Pay nothing (dupe protection).
+        if (plan == null || event.isCancelled() || event.isDropItems()) return;
 
         Player player = event.getPlayer();
         boolean replant = !plan.seedConsumed() || SeedIndex.consume(player, plan.crop().seed());
@@ -72,6 +75,11 @@ public final class ReplenishPlusPlusListener implements Listener {
                     plan.cocoaFacing(), player.getUniqueId(), plan.seedConsumed());
         }
         distributeDrops(player, event.getBlock(), plan.config(), plan.drops());
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        messageCooldown.remove(event.getPlayer().getUniqueId());
     }
 
     private void prepareHarvest(BlockBreakEvent event) {

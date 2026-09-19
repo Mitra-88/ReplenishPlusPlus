@@ -36,6 +36,7 @@ maxReplantsPerTick: 1024
 maxReplantsQueued: 4096
 
 # Should the plugin check for updates on startup and notify admins?
+# Read at startup only - /rpp reload does not apply changes to this.
 checkUpdates: true
 
 # ------------------------------------------------------------------------------
