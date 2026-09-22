@@ -60,7 +60,7 @@ public final class ReplantQueue {
     private BukkitTask scheduledTask;
     private volatile boolean started = false;
 
-    private static final int CHUNK_MEMO_SIZE = 4;
+    private static final int CHUNK_MEMO_SIZE = 16;
     private final World[] memoWorlds = new World[CHUNK_MEMO_SIZE];
     private final long[] memoChunkKeys = new long[CHUNK_MEMO_SIZE];
     private final int[] memoTicks = new int[CHUNK_MEMO_SIZE];
