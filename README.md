@@ -35,7 +35,7 @@ If you ever farmed on Hypixel SkyBlock, you already know the idea, it's Replenis
 
 **Immature crop:**
 - Replants at the same age it was. No seed needed.
-- No drops either — otherwise you could farm infinite seeds by re-breaking young crops.
+- No drops either, otherwise you could farm infinite seeds by re-breaking young crops.
 
 ---
 
@@ -72,13 +72,13 @@ Permissions:
 
 Hypixel SkyBlock-style Teleport Pads. Grab one with `/rpp pad` (op), place it, done.
 
-- **Step on a pad and it warps you to its destination instantly** — Hypixel style. **Right-click** works too
+- **Step on a pad and it warps you to its destination instantly**, Hypixel style. **Right-click** works too
 - Set pad A's destination to pad B and B's to A, and you warp back and forth all day (2 second cooldown between warps so linked pads can't ping-pong you)
-- Every pad gets its own color automatically — first pad red, next yellow, and so on — shown as a little block sitting on the pad and used as its icon in menus; change it anytime in the pad menu
+- Every pad gets its own color automatically, first pad red, next yellow, and so on, shown as a little block sitting on the pad and used as its icon in menus; change it anytime in the pad menu
 - **Sneak-right-click** opens the pad menu: set destination (pick from your other pads), arrival direction (keep your direction or snap to 8 fixed facings), pad icon (56 icons, like Hypixel), custom name (typed in chat), or pick the pad back up
 - Breaking a pad picks it up instead of destroying it
-- Pads belong to whoever placed them — only they can use and configure them, 56 per player, saved in `pads.yml`
-- Placing, walking on, or using a pad costs the server nothing per tick — the walk-on check is three int compares, everything else is click-driven
+- Pads belong to whoever placed them, only they can use and configure them, 56 per player, saved in `pads.yml`
+- Placing, walking on, or using a pad costs the server nothing per tick, the walk-on check is three int compares, everything else is click-driven
 
 ## Config
 

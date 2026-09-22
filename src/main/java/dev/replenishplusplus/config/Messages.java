@@ -20,19 +20,19 @@ public final class Messages {
             Map.entry("prefix", DEFAULT_PREFIX),
             Map.entry("harvest.wrong-tool", "<gray>You need a <yellow><tool> <gray>to farm <yellow><crop><gray>."),
             Map.entry("harvest.need-seed", "<gray>You need <yellow><count>x <seed> <gray>in your inventory to replant this."),
-            Map.entry("harvest.inventory-full", "<gray>Your inventory is full <dark_gray>— <gray>the rest dropped on the ground."),
-            Map.entry("toggle.on", "<gray>Auto-replant is <green>on</green> <dark_gray>— <gray>break a crop, it replants itself."),
-            Map.entry("toggle.off", "<gray>Auto-replant is <red>off</red> <dark_gray>— <gray>crops break like vanilla."),
-            Map.entry("toggle.global-on", "<gray>Global replanting is <green>on</green> <dark_gray>— <gray>everyone's crops replant again."),
-            Map.entry("toggle.global-off", "<gray>Global replanting is <red>off</red> <dark_gray>— <gray>nobody's crops replant."),
+            Map.entry("harvest.inventory-full", "<gray>Your inventory is full <dark_gray>: <gray>the rest dropped on the ground."),
+            Map.entry("toggle.on", "<gray>Auto-replant is <green>on</green> <dark_gray>: <gray>break a crop, it replants itself."),
+            Map.entry("toggle.off", "<gray>Auto-replant is <red>off</red> <dark_gray>: <gray>crops break like vanilla."),
+            Map.entry("toggle.global-on", "<gray>Global replanting is <green>on</green> <dark_gray>: <gray>everyone's crops replant again."),
+            Map.entry("toggle.global-off", "<gray>Global replanting is <red>off</red> <dark_gray>: <gray>nobody's crops replant."),
             Map.entry("toggle.global-not-saved", "<yellow>config.yml looks broken, so this wasn't saved. Fix the file and run /rpp reload, or it resets on restart."),
-            Map.entry("pad.given", "<gray>Here's a pad <dark_gray>— <gray>place it, step on it, warp. Sneak-right-click it to set where it goes."),
-            Map.entry("pad.placed", "<gray>Pad placed <dark_gray>— <gray>sneak-right-click it to set where it warps you."),
+            Map.entry("pad.given", "<gray>Here's a pad <dark_gray>: <gray>place it, step on it, warp. Sneak-right-click it to set where it goes."),
+            Map.entry("pad.placed", "<gray>Pad placed <dark_gray>: <gray>sneak-right-click it to set where it warps you."),
             Map.entry("pad.picked-up", "<gray>Pad picked up."),
             Map.entry("pad.not-yours", "<red>That pad isn't yours."),
-            Map.entry("pad.no-destination", "<gray>This pad has no destination yet <dark_gray>— <gray>pick one below."),
+            Map.entry("pad.no-destination", "<gray>This pad has no destination yet <dark_gray>: <gray>pick one below."),
             Map.entry("pad.destination-set", "<gray>Destination set to <yellow><pad><gray>. Step on the pad to warp."),
-            Map.entry("pad.destination-gone", "<red>The pad it warped to is gone <dark_gray>— <gray>pick a new one."),
+            Map.entry("pad.destination-gone", "<red>The pad it warped to is gone <dark_gray>: <gray>pick a new one."),
             Map.entry("pad.renamed", "<gray>Pad renamed to <yellow><name><gray>."),
             Map.entry("pad.name-cleared", "<gray>Pad name cleared."),
             Map.entry("pad.name-prompt", "<gray>Type the new name in chat <dark_gray>(<gray>empty message clears it<dark_gray>)<gray>."),
@@ -54,10 +54,10 @@ public final class Messages {
 
                     <dark_gray>────────  <gradient:#FFD700:#FF9D00><bold>Replenish++</bold></gradient>  <dark_gray>────────
                     <gradient:#FFD700:#FF9D00><bold>Farming</bold></gradient>
-                    <dark_gray>  · <gray>Break a crop with the right tool — a <yellow>hoe <gray>for crops, an <yellow>axe <gray>for cocoa.
+                    <dark_gray>  · <gray>Break a crop with the right tool, a <yellow>hoe <gray>for crops, an <yellow>axe <gray>for cocoa.
                     <dark_gray>  · <gray>It replants itself and eats one seed from your inventory.
                     <dark_gray>  · <gray>Sneak while breaking if you want the vanilla behavior.
-                    <dark_gray>  · <gray>Keep some spare seeds — at full speed you burn through them fast.
+                    <dark_gray>  · <gray>Keep some spare seeds, at full speed you burn through them fast.
                     <gradient:#FFD700:#FF9D00><bold>Teleport Pads</bold></gradient>
                     <dark_gray>  · <gray>Grab one with <yellow>/rpp pad<gray>, place it, step on it to warp.
                     <dark_gray>  · <gray>Sneak-right-click a pad to set where it goes.

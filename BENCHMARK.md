@@ -1,6 +1,6 @@
 Outdated (im so tired, just wait a little plz!)
 
-# BENCHMARK — ReplenishPlusPlus under load
+# BENCHMARK: ReplenishPlusPlus under load
 
 Measured live with spark during a 5m14s window of non-stop wheat farming, dev
 mode fully enabled (full-age replants, instant growth, auto inventory clear).
@@ -29,7 +29,7 @@ java -Xms2048M -Xmx2048M --add-modules jdk.incubator.vector -Dpaper.preferSparkP
 | --- | --- |
 | Crops harvested | **5,984** in 5m14s (**19.05/sec**, sustained) |
 | Crops auto-cleared | 25,243 items (~80/sec) |
-| TPS | 20.00 — flat across 1m / 5m / 15m |
+| TPS | 20.00, flat across 1m / 5m / 15m |
 | MSPT | min 0.52 · **median 1.29** · 95%ile 1.68 · max 20.9 |
 | Process CPU | 0.62% (1m) · 1.02% (15m) |
 
@@ -48,8 +48,8 @@ The entire plugin accounted for **0.19%** of the server thread.
 | Teleport pad walk-on (`PadListener.onMove`) | 0.01% |
 | Dev mode (`clearTick`, `onHarvest`, `anyActive`) | **0.00%** |
 
-The big frames inside those numbers — `getDrops` loot tables, chunk writes,
-heightmap updates — are work the server does for *any* block break. The
+The big frames inside those numbers, `getDrops` loot tables, chunk writes,
+heightmap updates, are work the server does for *any* block break. The
 plugin's own logic rides on top at fractions of a hundredth of a percent.
 
 Dev mode, quoted straight from the capture:
@@ -61,7 +61,7 @@ dev.replenishplusplus.dev.DevModeManager.clearTick()   0.00%
 ```
 
 Full-age replants, instant growth, the auto-clear task, and the spark harvest
-counter all running at once — and together they round to zero inside the
+counter all running at once, and together they round to zero inside the
 profiler that was running *because of* them.
 
 ## How many players can it handle?
@@ -80,11 +80,11 @@ linear, so (plugin share only, everyone farming non-stop):
 **The practical answer: the plugin never becomes the bottleneck.** A typical
 server (20–100 players online, a slice of them farming) spends under 1–5% of a
 thread on it. The replant pipeline itself holds until the configured safety
-cap — `maxReplantsPerTick: 1024` × 20 TPS = ~20,480 crops/sec — and when
+cap, `maxReplantsPerTick: 1024` × 20 TPS = ~20,480 crops/sec, and when
 something ever exceeds it, the queue defers excess replants to the next tick
 and, in the extreme, drops them with a throttled console warning instead of
 lagging the server. A consumed seed is refunded when a replant itself fails
-(like a chunk that stays unloaded) — a queue-full drop stays silent by design.
+(like a chunk that stays unloaded), a queue-full drop stays silent by design.
 
 **MSPT headroom:** the median tick used 1.29ms of the 50ms budget (2.6%). The
 single 20.9ms max tick has no plugin frame anywhere in its tree that's GC

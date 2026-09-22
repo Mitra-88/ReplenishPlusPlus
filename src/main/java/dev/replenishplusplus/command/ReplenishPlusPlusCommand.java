@@ -214,7 +214,7 @@ public final class ReplenishPlusPlusCommand {
         sb.append("  ").append(Messages.DOT).append("<gray>Capacity used: <white>")
                 .append(String.format(Locale.ROOT, "%.1f%%", usagePercent)).append("\n\n");
         if (stats.pendingCount() > stats.maxPoolSize() / 2) {
-            sb.append("  ").append(Messages.DOT).append("<yellow>⚠ <gray>Queue is over 50% full — consider raising maxReplantsQueued.\n\n");
+            sb.append("  ").append(Messages.DOT).append("<yellow>⚠ <gray>Queue is over 50% full, consider raising maxReplantsQueued.\n\n");
         } else {
             sb.append("  ").append(Messages.DOT).append("<green>✔ <gray>Queue is healthy.\n\n");
         }
