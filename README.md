@@ -1,6 +1,6 @@
 # Replenish++ 🌾
 
-Auto-replant for Paper/Purpur. Break a crop, it goes right back in the ground. That's the whole plugin.
+Auto-replant for Paper/Purpur. Break a crop, it goes right back in the ground.
 
 If you ever farmed on Hypixel SkyBlock, you already know the idea, it's Replenish, the enchantment that made farming not completely miserable.
 
@@ -64,21 +64,9 @@ Permissions:
 - `replenishplusplus.toggle.global` - op
 - `replenishplusplus.reload` - op
 - `replenishplusplus.debug` - op
-- `replenishplusplus.pad` - op
+- `replenishplusplus.pad` - op (Only meant for devs)
 - `replenishplusplus.update` - op
 - `replenishplusplus.*` - op (grants all of the above)
-
-## Teleport Pads
-
-Hypixel SkyBlock-style Teleport Pads. Grab one with `/rpp pad` (op), place it, done.
-
-- **Step on a pad and it warps you to its destination instantly**, Hypixel style. **Right-click** works too
-- Set pad A's destination to pad B and B's to A, and you warp back and forth all day (2 second cooldown between warps so linked pads can't ping-pong you)
-- Every pad gets its own color automatically, first pad red, next yellow, and so on, shown as a little block sitting on the pad and used as its icon in menus; change it anytime in the pad menu
-- **Sneak-right-click** opens the pad menu: set destination (pick from your other pads), arrival direction (keep your direction or snap to 8 fixed facings), pad icon (56 icons, like Hypixel), custom name (typed in chat), or pick the pad back up
-- Breaking a pad picks it up instead of destroying it
-- Pads belong to whoever placed them, only they can use and configure them, 56 per player, saved in `pads.yml`
-- Placing, walking on, or using a pad costs the server nothing per tick, the walk-on check is three int compares, everything else is click-driven
 
 ## Config
 
