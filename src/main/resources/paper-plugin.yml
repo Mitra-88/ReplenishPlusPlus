@@ -28,6 +28,12 @@ permissions:
   replenishplusplus.debug:
     description: Allows an admin to view queue debug statistics.
     default: op
+  replenishplusplus.dev:
+    description: Toggles developer mode.
+    default: op
+  replenishplusplus.pad:
+    description: Allows receiving a Teleport Pad item via /rpp pad.
+    default: op
   replenishplusplus.update:
     description: Allows an admin to receive in-game update notifications on join.
     default: op
@@ -42,4 +48,6 @@ permissions:
       replenishplusplus.reload: true
       replenishplusplus.version: true
       replenishplusplus.debug: true
+      replenishplusplus.dev: true
+      replenishplusplus.pad: true
       replenishplusplus.update: true

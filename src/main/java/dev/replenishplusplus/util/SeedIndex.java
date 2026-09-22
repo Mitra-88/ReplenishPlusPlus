@@ -60,7 +60,6 @@ public final class SeedIndex {
 
         if (stack.getAmount() > 1) {
             stack.setAmount(stack.getAmount() - 1);
-            writeSlot(inventory, slot, stack);
         } else {
             writeSlot(inventory, slot, null);
             cache.put(material, findNextSlot(inventory, material));

@@ -47,10 +47,7 @@ public final class DropPickupManager {
         }
 
         if (anyDropped) {
-            String message = config.inventoryFullMessage();
-            if (!message.isBlank()) {
-                config.messageStyle().send(player, Messages.MINI_MESSAGE.deserialize(message));
-            }
+            config.messageStyle().send(player, Messages.prefixed("harvest.inventory-full"));
             config.inventoryFullSound().play(player);
         }
         if (anyAdded) {

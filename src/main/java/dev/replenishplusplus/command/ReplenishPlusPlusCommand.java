@@ -41,6 +41,10 @@ public final class ReplenishPlusPlusCommand {
                         .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.toggle", this::handlePersonalToggle))
                         .then(Commands.literal("global")
                                 .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.toggle.global", this::handleGlobalToggle))))
+                .then(Commands.literal("dev")
+                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.dev", this::handleDevToggle)))
+                .then(Commands.literal("pad")
+                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.pad", this::handlePadGive)))
                 .then(Commands.literal("version")
                         .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.version", this::sendVersion)))
                 .then(Commands.literal("debug")
@@ -57,7 +61,7 @@ public final class ReplenishPlusPlusCommand {
     private int execute(CommandSourceStack source, String permission, Consumer<CommandSender> action) {
         CommandSender sender = source.getSender();
         if (!sender.hasPermission(permission)) {
-            send(sender, Messages.prefixed("<red>You don't have permission to do that. <dark_gray>(<gray>requires " + permission + "<dark_gray>)"));
+            sendPrefixed(sender, "<red>You don't have permission to do that. <dark_gray>(<gray>requires " + permission + "<dark_gray>)");
             return 0;
         }
         action.accept(sender);
@@ -65,53 +69,12 @@ public final class ReplenishPlusPlusCommand {
     }
 
     private void sendMainMenu(CommandSender sender) {
-        String version = plugin.getPluginMeta().getVersion();
-        String menu = """
-                
-                <dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>v<version> <dark_gray>]       <reset>
-                
-                <yellow>/replenishplusplus help <dark_gray>- <gray>Shows a detailed guide on how to use the plugin.
-                <yellow>/replenishplusplus status <dark_gray>- <gray>Shows current settings and enabled crops.
-                <yellow>/replenishplusplus reload <dark_gray>- <gray>Reloads config.yml without restarting.
-                <yellow>/replenishplusplus toggle <dark_gray>- <gray>Toggles auto-replant for <i>you</i> personally.
-                <yellow>/replenishplusplus toggle global <dark_gray>- <gray>Toggles auto-replant for everyone (admin).
-                <yellow>/replenishplusplus version <dark_gray>- <gray>Shows version and update info.
-                <yellow>/rpp <dark_gray>- <gray>Short alias for this command.
-                
-                <line>""";
-        sender.sendMessage(Messages.MINI_MESSAGE.deserialize(menu,
-                Placeholder.parsed("version", version),
-                Placeholder.parsed("line", Messages.LINE)));
+        sender.sendMessage(Messages.component("menu.main",
+                Placeholder.unparsed("version", plugin.getPluginMeta().getVersion())));
     }
 
     private void sendHelp(CommandSender sender) {
-        String help = """
-                
-                <dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>Help Guide <dark_gray>]       <reset>
-                
-                <yellow>How it works:
-                  <dot><gray>Use a <white>Hoe <gray>for normal crops, or an <white>Axe <gray>for Cocoa.
-                  <dot><gray>Break the crop, and it will auto-replant instantly.
-                  <dot><gray>If seeds are required, 1 seed is taken from your inventory.
-                  <dot><gray>Use <white>/rpp toggle <gray>to turn auto-replant off for yourself.
-                
-                <yellow><bold>Pro Tip:
-                  <dot><gray>It is best to have at least <white>4x <gray>of the seed of the crop to
-                    <gray>avoid replanting it too fast and running out, making it think
-                    <gray>you don't have enough seeds!
-                
-                <yellow>Commands:
-                  <dot><white>/rpp status <dark_gray>- <gray>Shows current settings and enabled crops.
-                  <dot><white>/rpp reload <dark_gray>- <gray>Reloads config.yml without restarting.
-                  <dot><white>/rpp toggle <dark_gray>- <gray>Toggles auto-replant for you personally.
-                  <dot><white>/rpp toggle global <dark_gray>- <gray>Toggles auto-replant for everyone (admin).
-                  <dot><white>/rpp version <dark_gray>- <gray>Shows version and update info.
-                  <dot><white>/rpp debug queue <dark_gray>- <gray>Shows replant queue statistics.
-                
-                <line>""";
-        sender.sendMessage(Messages.MINI_MESSAGE.deserialize(help,
-                Placeholder.parsed("dot", Messages.DOT),
-                Placeholder.parsed("line", Messages.LINE)));
+        sender.sendMessage(Messages.component("menu.help"));
     }
 
     private void handlePersonalToggle(CommandSender sender) {
@@ -120,31 +83,43 @@ public final class ReplenishPlusPlusCommand {
             return;
         }
         boolean nowEnabled = plugin.getPlayerToggleManager().toggle(player);
-        String state  = nowEnabled ? "<green><bold>ENABLED" : "<red><bold>DISABLED";
-        String detail = nowEnabled
-                ? "Crops will auto-replant for you again."
-                : "Crops will no longer auto-replant for you. Harvests behave like vanilla.";
-        sendPrefixed(sender, "Your personal replanting is now " + state + "<gray>. " + detail);
+        sender.sendMessage(Messages.prefixed(nowEnabled ? "toggle.on" : "toggle.off"));
     }
 
     private void handleGlobalToggle(CommandSender sender) {
         boolean nowEnabled = !plugin.isEnabledGlobally();
         plugin.setGloballyEnabled(nowEnabled);
-
-        String state  = nowEnabled ? "<green><bold>ENABLED" : "<red><bold>DISABLED";
-        String detail = nowEnabled
-                ? "Crops will replant themselves again for everyone."
-                : "Crops will no longer replant. Harvests behave like vanilla.";
-        sendPrefixed(sender, "Global replanting is now " + state + "<gray>. " + detail);
+        sender.sendMessage(Messages.prefixed(nowEnabled ? "toggle.global-on" : "toggle.global-off"));
 
         if (plugin.isConfigFileBroken()) {
-            sendPrefixed(sender, "<yellow>config.yml looks empty or invalid, so this toggle was not saved. Fix the file and run /rpp reload, or the change is lost on restart.");
+            sender.sendMessage(Messages.prefixed("toggle.global-not-saved"));
             return;
         }
         plugin.getConfig().set("enabled", nowEnabled);
         plugin.saveConfig();
     }
 
+    private void handleDevToggle(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sendPrefixed(sender, "<red>Only players can toggle dev mode.");
+            return;
+        }
+        boolean enabled = plugin.getDevModeManager().toggle(player);
+        if (enabled) {
+            sendPrefixed(sender, "Dev mode <green><bold>ENABLED<gray>. Water acts like dry ground, ice can't form anywhere, your inventory auto-clears (tools + one seed stack stay), and your crops replant fully grown.");
+        } else {
+            sendPrefixed(sender, "Dev mode <red><bold>DISABLED<gray>. Everything is back to vanilla for you.");
+        }
+    }
+
+    private void handlePadGive(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sendPrefixed(sender, "<red>Only players can receive a Teleport Pad.");
+            return;
+        }
+        plugin.getPadManager().givePadItem(player);
+        sender.sendMessage(Messages.prefixed("pad.given"));
+    }
     private void handleReload(CommandSender sender) {
         send(sender, "<gray>Reloading configuration...");
 
@@ -152,7 +127,7 @@ public final class ReplenishPlusPlusCommand {
         ConfigCache cfg = plugin.getConfigCache();
 
         var sb = new StringBuilder();
-        sb.append("\n<dark_gray>      [ <yellow><bold>Config Reloaded <dark_gray>]       <reset>\n\n");
+        sb.append("\n<dark_gray>      [ <gradient:#FFD700:#FF9D00><bold>Config Reloaded</bold></gradient> <dark_gray>]\n\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Replanting: ").append(onOff(cfg.enabled())).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Replant delay: <white>").append(cfg.replantDelayTicks()).append(" tick(s)\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Replants per tick: <white>").append(cfg.maxReplantsPerTick()).append("\n");
@@ -191,37 +166,37 @@ public final class ReplenishPlusPlusCommand {
         String version = plugin.getPluginMeta().getVersion();
 
         var sb = new StringBuilder();
-        sb.append("\n<dark_gray>      [ <yellow><bold>ReplenishPlusPlus <gray>v").append(version).append(" <dark_gray>]       <reset>\n\n");
+        sb.append("\n<dark_gray>      [ <gradient:#FFD700:#FF9D00><bold>Replenish++</bold></gradient> <gray>v").append(version).append(" <dark_gray>]\n\n");
         sb.append(cfg.enabled()
-                ? "  <green>✔ <white>Replanting is active\n"
-                : "  <red>✘ <white>Replanting is disabled\n");
+                ? "  <green>✔ <white>Replanting is on\n"
+                : "  <red>✘ <white>Replanting is off\n");
         sb.append(cfg.requirePlayerSeed()
-                ? "  <green>✔ <white>Players must have a spare seed to replant\n"
-                : "  <red>✘ <white>No seed needed to replant\n");
+                ? "  <green>✔ <white>Replanting eats one seed\n"
+                : "  <red>✘ <white>Replanting is free\n");
         sb.append(cfg.directPickup()
-                ? "  <green>✔ <white>Harvested crops go straight to inventory\n"
-                : "  <red>✘ <white>Harvested crops drop on the ground\n");
+                ? "  <green>✔ <white>Drops go straight to you\n"
+                : "  <red>✘ <white>Drops fall on the ground\n");
         sb.append(cfg.sneakToBypass()
-                ? "  <green>✔ <white>Sneaking bypasses auto-replant\n\n"
-                : "  <red>✘ <white>Sneaking does not bypass\n\n");
+                ? "  <green>✔ <white>Sneaking skips replanting\n\n"
+                : "  <red>✘ <white>Sneaking doesn't skip\n\n");
 
-        sb.append("<yellow>Timing\n");
-        sb.append("  ").append(Messages.DOT).append("<gray>Replants after: <white>").append(cfg.replantDelayTicks()).append(" tick(s)\n");
-        sb.append("  ").append(Messages.DOT).append("<gray>Replants per tick: <white>").append(cfg.maxReplantsPerTick()).append("\n");
-        sb.append("  ").append(Messages.DOT).append("<gray>Queue capacity: <white>").append(cfg.maxReplantsQueued()).append("\n\n");
+        sb.append("<gradient:#FFD700:#FF9D00><bold>Timing</bold></gradient>\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replants after <white>").append(cfg.replantDelayTicks()).append(" <gray>tick(s)\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Up to <white>").append(cfg.maxReplantsPerTick()).append(" <gray>replants per tick\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Queue holds <white>").append(cfg.maxReplantsQueued()).append("\n\n");
 
-        sb.append("<yellow>Crops that auto-replant\n\n");
+        sb.append("<gradient:#FFD700:#FF9D00><bold>Crops</bold></gradient>\n\n");
         for (CropType crop : CropType.values()) {
             boolean on = plugin.isCropEnabled(crop);
             sb.append("  ").append(on ? "<green>✔" : "<red>✘").append(" <gray>").append(crop.displayName()).append("\n");
         }
-        sb.append("\n<yellow>Sounds\n");
+        sb.append("\n<gradient:#FFD700:#FF9D00><bold>Sounds</bold></gradient>\n");
         appendSoundLine(sb, "Pickup",          cfg.pickupSound());
         appendSoundLine(sb, "Inventory full",  cfg.inventoryFullSound());
         appendSoundLine(sb, "Denied (tool)",   cfg.deniedToolSound());
         appendSoundLine(sb, "Denied (seed)",   cfg.deniedSeedSound());
         appendSoundLine(sb, "Replant failed",  cfg.replantFailedSound());
-        sb.append("\n<gray>Tip: <dark_gray>/<gray>rpp reload <gray>after editing config.yml.\n\n");
+        sb.append("\n<gray>Edited config.yml or en_us.yml? <dark_gray>/<gray>rpp reload <gray>applies it.\n\n");
         sb.append(Messages.LINE);
 
         send(sender, sb.toString());
@@ -232,7 +207,7 @@ public final class ReplenishPlusPlusCommand {
         double usagePercent = 100.0 * stats.pendingCount() / stats.maxPoolSize();
 
         var sb = new StringBuilder();
-        sb.append("\n<dark_gray>      [ <yellow><bold>Queue Debug <dark_gray>]       <reset>\n\n");
+        sb.append("\n<dark_gray>      [ <gradient:#FFD700:#FF9D00><bold>Queue Debug</bold></gradient> <dark_gray>]\n\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Pending replants: <white>").append(stats.pendingCount()).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Pool size: <white>").append(stats.currentPoolSize())
                 .append("<dark_gray>/<white>").append(stats.maxPoolSize()).append("\n");
@@ -253,7 +228,7 @@ public final class ReplenishPlusPlusCommand {
         String runningVersion = "v" + plugin.getPluginMeta().getVersion();
 
         var sb = new StringBuilder();
-        sb.append("\n<dark_gray>      [ <yellow><bold>Version Info <dark_gray>]       <reset>\n\n");
+        sb.append("\n<dark_gray>      [ <gradient:#FFD700:#FF9D00><bold>Version Info</bold></gradient> <dark_gray>]\n\n");
 
         if (!uc.isEnabled()) {
             sb.append("  ").append(Messages.DOT).append("<gray>You're running: <white>").append(runningVersion).append("\n");
@@ -262,11 +237,11 @@ public final class ReplenishPlusPlusCommand {
             sb.append("  ").append(Messages.DOT).append("<gray>You're running: <white>").append(runningVersion).append("\n");
             sb.append("  ").append(Messages.DOT).append("<gray>Update check: <white>Still checking, try again shortly\n");
         } else if (uc.isUpdateAvailable()) {
-            sb.append("  ").append(Messages.DOT).append("<yellow>A new version is available! <dark_gray>(<white>v")
-                    .append(uc.getCurrentVersion()).append(" <gray>➔ <yellow>v").append(uc.getLatestVersion()).append("<dark_gray>)\n");
+            sb.append("  ").append(Messages.DOT).append(Messages.text("update.available")
+                    .replace("<current>", uc.getCurrentVersion())
+                    .replace("<latest>", uc.getLatestVersion())).append('\n');
             sb.append("  ").append(Messages.DOT)
-                    .append("<gray>Download: <aqua><click:open_url:'").append(UpdateChecker.RELEASES_URL)
-                    .append("'><hover:show_text:'<gray>Click to open release page'><u>github.com/Mitra-88/ReplenishPlusPlus</u></click>\n");
+                    .append("<gray>Download: ").append(uc.downloadLink()).append('\n');
         } else if (uc.isCheckFailed()) {
             sb.append("  ").append(Messages.DOT).append("<red>Update check failed <dark_gray>(<gray>see server log for details<dark_gray>)\n");
         } else if (uc.isLocalNewer()) {
@@ -311,10 +286,10 @@ public final class ReplenishPlusPlusCommand {
     }
 
     private static void send(CommandSender sender, String message) {
-        sender.sendMessage(Messages.MINI_MESSAGE.deserialize(message));
+        sender.sendMessage(Messages.bare(message));
     }
 
     private static void sendPrefixed(CommandSender sender, String message) {
-        send(sender, Messages.prefixed(message));
+        sender.sendMessage(Messages.prefixedRaw(message));
     }
 }

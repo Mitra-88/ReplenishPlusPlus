@@ -6,13 +6,19 @@ import dev.replenishplusplus.config.Messages;
 import dev.replenishplusplus.config.PlayerToggleManager;
 import dev.replenishplusplus.crop.AgeMetaRegistry;
 import dev.replenishplusplus.crop.CropType;
+import dev.replenishplusplus.dev.DevModeListener;
+import dev.replenishplusplus.dev.DevModeManager;
 import dev.replenishplusplus.listener.ReplenishPlusPlusListener;
 import dev.replenishplusplus.listener.SeedCacheInvalidationListener;
+import dev.replenishplusplus.pad.PadListener;
+import dev.replenishplusplus.pad.PadMenuListener;
+import dev.replenishplusplus.pad.TeleportPadManager;
 import dev.replenishplusplus.queue.QueueStats;
 import dev.replenishplusplus.queue.ReplantQueue;
 import dev.replenishplusplus.update.UpdateChecker;
 import dev.replenishplusplus.update.UpdateNotificationListener;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -34,12 +40,17 @@ public final class ReplenishPlusPlus extends JavaPlugin {
     private volatile ReplantQueue replantQueue;
     private UpdateChecker updateChecker;
     private PlayerToggleManager playerToggleManager;
+    private DevModeManager devModeManager;
+    private TeleportPadManager padManager;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveResource("en_us.yml", false);
         ageMetaRegistry = new AgeMetaRegistry(this);
         playerToggleManager = new PlayerToggleManager(this);
+        devModeManager = new DevModeManager(this);
+        padManager = new TeleportPadManager(this);
         reloadLocalConfig();
 
         ConfigCache config = getConfigCache();
@@ -57,7 +68,8 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         }
         sendConsole("Replants per tick: <white>" + config.maxReplantsPerTick());
         sendConsole("Queue capacity: <white>" + config.maxReplantsQueued());
-        sendConsole("Delay: <white>" + config.replantDelayTicks() + " tick");
+        int delayTicks = config.replantDelayTicks();
+        sendConsole("Delay: <white>" + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
         sendConsole("Running version: <white>v" + getPluginMeta().getVersion());
 
         updateChecker = new UpdateChecker(this, config.checkUpdates());
@@ -65,6 +77,9 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ReplenishPlusPlusListener(this, ageMetaRegistry), this);
         getServer().getPluginManager().registerEvents(new SeedCacheInvalidationListener(), this);
         getServer().getPluginManager().registerEvents(new UpdateNotificationListener(this), this);
+        getServer().getPluginManager().registerEvents(new DevModeListener(devModeManager), this);
+        getServer().getPluginManager().registerEvents(new PadListener(padManager), this);
+        getServer().getPluginManager().registerEvents(new PadMenuListener(this, padManager), this);
 
         updateChecker.check();
 
@@ -73,6 +88,12 @@ public final class ReplenishPlusPlus extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (devModeManager != null) {
+            devModeManager.shutdown();
+        }
+        if (padManager != null) {
+            padManager.save();
+        }
         if (replantQueue != null) {
             replantQueue.flush();
         }
@@ -80,6 +101,7 @@ public final class ReplenishPlusPlus extends JavaPlugin {
 
     public List<String> reloadLocalConfig() {
         List<String> issues = new ArrayList<>();
+        Messages.load(YamlConfiguration.loadConfiguration(new File(getDataFolder(), "en_us.yml")));
         try {
             reloadConfig();
         } catch (Exception e) {
@@ -88,9 +110,6 @@ public final class ReplenishPlusPlus extends JavaPlugin {
             return List.copyOf(issues);
         }
 
-        // YamlConfiguration swallows parse errors and returns an empty config; with the
-        // bundled defaults layered in, every read would silently fall back to defaults.
-        // Detect that and keep the previous settings instead.
         if (isConfigFileBroken()) {
             String issue = "config.yml is empty or could not be parsed (invalid YAML?) - keeping previous settings";
             getLogger().warning("[Config] " + issue);
@@ -122,11 +141,6 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         }
     }
 
-    /**
-     * True when config.yml exists but parsed to no settings (empty or invalid YAML).
-     * YamlConfiguration swallows parse errors, so an in-memory write-through here would
-     * clobber the file; callers must not persist config state in this state.
-     */
     public boolean isConfigFileBroken() {
         File configFile = new File(getDataFolder(), "config.yml");
         return configFile.isFile() && getConfig().getKeys(false).isEmpty();
@@ -134,6 +148,8 @@ public final class ReplenishPlusPlus extends JavaPlugin {
 
     public UpdateChecker getUpdateChecker() { return updateChecker; }
     public PlayerToggleManager getPlayerToggleManager() { return playerToggleManager; }
+    public DevModeManager getDevModeManager() { return devModeManager; }
+    public TeleportPadManager getPadManager() { return padManager; }
 
     public ConfigCache getConfigCache() { return configCacheRef.get(); }
     public boolean isEnabledGlobally() { return getConfigCache().enabled(); }
@@ -156,6 +172,6 @@ public final class ReplenishPlusPlus extends JavaPlugin {
     }
 
     private void sendConsole(String message) {
-        getServer().getConsoleSender().sendMessage(Messages.MINI_MESSAGE.deserialize(Messages.PREFIX + message));
+        getServer().getConsoleSender().sendMessage(Messages.prefixedRaw(message));
     }
 }

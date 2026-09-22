@@ -72,8 +72,6 @@ public final class ConfigReader {
         return raw == null ? def : raw;
     }
 
-    // getString() returns null for section/list values, which is indistinguishable from an
-    // absent key - detect them so a broken value is reported instead of silently defaulted.
     private static boolean wrongStructure(FileConfiguration config, String path) {
         return config.isConfigurationSection(path) || config.isList(path);
     }

@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 25 (Zulu)
         uses: actions/setup-java@0781fc6af30d3e1f67f2d243034e1a15cf5f3677
@@ -37,13 +39,18 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
 
+      - name: Read project version
+        id: version
+        run: echo "version=$(mvn -B help:evaluate -Dexpression=project.version -DforceStdout)" >> "$GITHUB_OUTPUT"
+        shell: bash
+
       - name: Get short SHA
         id: sha
         run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Upload Artifact with short SHA
+      - name: Upload Artifact with version, build number, and short SHA
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: ReplenishPlusPlus-7.0.0-${{ steps.sha.outputs.short_sha }}
+          name: ReplenishPlusPlus-${{ steps.version.outputs.version }}+build.${{ github.run_number }}-${{ steps.sha.outputs.short_sha }}
           path: target/*.jar

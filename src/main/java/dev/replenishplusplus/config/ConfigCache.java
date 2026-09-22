@@ -25,14 +25,20 @@ public record ConfigCache(
         int maxReplantsQueued,
         boolean checkUpdates,
         Set<CropType> disabledCrops,
-        String inventoryFullMessage,
-        String requiresToolMessage,
-        String needSeedMessage,
         SoundEffect pickupSound,
         SoundEffect inventoryFullSound,
         SoundEffect deniedToolSound,
         SoundEffect deniedSeedSound,
-        SoundEffect replantFailedSound) {
+        SoundEffect replantFailedSound,
+        DevOptions dev) {
+
+    public record DevOptions(
+            boolean fastWater,
+            boolean noIce,
+            boolean inventoryClear,
+            boolean fullAgeReplant,
+            boolean harvestCounter,
+            boolean fastGrowth) {}
 
     public static final int DEFAULT_REPLANT_DELAY_TICKS = 1;
     public static final int DEFAULT_MAX_REPLANTS_PER_TICK = 1024;
@@ -53,9 +59,9 @@ public record ConfigCache(
                 newEnabled, requirePlayerSeed, directPickup,
                 sneakToBypass, messageStyle,
                 replantDelayTicks, maxReplantsPerTick, maxReplantsQueued,
-                checkUpdates, disabledCrops, inventoryFullMessage, requiresToolMessage, needSeedMessage,
+                checkUpdates, disabledCrops,
                 pickupSound, inventoryFullSound, deniedToolSound, deniedSeedSound,
-                replantFailedSound);
+                replantFailedSound, dev);
     }
 
     public static ConfigCache defaults() {
@@ -86,14 +92,21 @@ public record ConfigCache(
                 delayTicks, perTick, queued,
                 ConfigReader.boolValue(config, "checkUpdates", true, issues),
                 readCrops(config, issues),
-                ConfigReader.stringValue(config, "messages.inventory-full", Messages.INVENTORY_FULL_DEFAULT, issues),
-                ConfigReader.stringValue(config, "messages.requires-tool", Messages.REQUIRES_TOOL_DEFAULT, issues),
-                ConfigReader.stringValue(config, "messages.need-seed", Messages.NEED_SEED_DEFAULT, issues),
                 readSound(config, "pickup", Sound.ENTITY_ITEM_PICKUP, 1.0f, issues),
                 readSound(config, "inventory-full", Sound.BLOCK_NOTE_BLOCK_BASS, 0.5f, issues),
                 readSound(config, "denied-tool", Sound.ENTITY_VILLAGER_NO, 0.5f, issues),
                 readSound(config, "denied-seed", Sound.ENTITY_VILLAGER_NO, 0.5f, issues),
-                readSound(config, "replant-failed", Sound.ENTITY_ITEM_BREAK, 1.0f, issues));
+                readSound(config, "replant-failed", Sound.ENTITY_ITEM_BREAK, 1.0f, issues),
+                readDevOptions(config, issues));
+    }
+    private static DevOptions readDevOptions(FileConfiguration config, List<String> issues) {
+        return new DevOptions(
+                ConfigReader.boolValue(config, "dev.fast-water", true, issues),
+                ConfigReader.boolValue(config, "dev.no-ice", true, issues),
+                ConfigReader.boolValue(config, "dev.inventory-clear", true, issues),
+                ConfigReader.boolValue(config, "dev.full-age-replant", true, issues),
+                ConfigReader.boolValue(config, "dev.harvest-counter", true, issues),
+                ConfigReader.boolValue(config, "dev.fast-growth", true, issues));
     }
 
     private static int clampAtLeast(int value, int min, String path, List<String> issues) {

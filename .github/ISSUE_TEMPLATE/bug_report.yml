@@ -38,7 +38,7 @@ body:
         - "Carrots"
         - "Potatoes"
         - "Nether Wart"
-        - "Cocoa Beans"
+        - "Cocoa"
         - "Beetroots"
         - "Multiple / All Crops"
     validations:
@@ -67,12 +67,11 @@ body:
     id: "server-software"
     attributes:
       label: "Server software"
+      description: "Paper or a Paper fork. Folia doesn't work with this plugin, and that's not something I'm going to fix."
       options:
         - "PaperMC"
         - "Purpur"
         - "Leaf"
-        - "Folia"
-        - "CanvasMC"
         - "Other (mention it in Additional Context)"
     validations:
       required: true
@@ -82,7 +81,7 @@ body:
     attributes:
       label: "Minecraft version"
       description: "Run `/version` in console. Paste the full output, not just the number."
-      placeholder: "This server is running Paper version 26.2-102-main@a40947c (2026-08-06T19:05:57Z) (Implementing API version 26.2.build.102-stable)"
+      placeholder: "This server is running Paper version 26.3-32-dev/26.3@0c803ba (2026-09-21T17:06:10Z) (Implementing API version 26.3.build.32-alpha)"
     validations:
       required: true
 
@@ -156,7 +155,7 @@ body:
     attributes:
       label: "Other plugins"
       description: |
-        List anything that touches farming, block breaking, or inventories mcMMO, anti-cheats, Essentials, etc. This helps rule out conflicts.
+        List anything that touches farming, block breaking, or inventories: mcMMO, anti-cheats, Essentials, etc. This helps rule out conflicts.
         Heads up: I don't fix compatibility issues with other plugins. If yours turns out to be a conflict, I'll close the issue and add the plugin to a known-incompatible list so others can check before reporting the same thing.
       placeholder: "EssentialsX, mcMMO, NoCheatPlus..."
     validations:

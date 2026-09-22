@@ -2,7 +2,7 @@
 
 Auto-replant for Paper/Purpur. Break a crop, it goes right back in the ground. That's the whole plugin.
 
-If you ever farmed on Hypixel SkyBlock, you already know this idea it's Replenish, the enchantment that made farming not completely miserable.
+If you ever farmed on Hypixel SkyBlock, you already know the idea, it's Replenish, the enchantment that made farming not completely miserable.
 
 ![Preview](assets/output.webp)
 
@@ -21,10 +21,10 @@ If you ever farmed on Hypixel SkyBlock, you already know this idea it's Replenis
 
 ## Install
 
-1. JAR goes in `plugins/`
-2. Start the server
-3. Poke at `plugins/ReplenishPlusPlus/config.yml` if you want (defaults are fine though)
-4. You're done
+1. Grab the jar from [Releases](https://github.com/Mitra-88/ReplenishPlusPlus/releases) or the Actions tab if you like living on dev builds
+2. Drop it in `plugins/`
+3. Start the server
+4. Poke at `plugins/ReplenishPlusPlus/config.yml` if you want (defaults are fine though)
 
 ## What happens by default (no config changes)
 
@@ -49,8 +49,9 @@ If you ever farmed on Hypixel SkyBlock, you already know this idea it's Replenis
 | `/replenishplusplus version`       | Plugin version & update status               |
 | `/replenishplusplus toggle`        | On/off switch for yourself                   |
 | `/replenishplusplus toggle global` | On/off switch for everyone                   |
+| `/replenishplusplus pad`           | Get a Teleport Pad item                      |
 | `/replenishplusplus reload`        | Reload config.yml                            |
-| `/replenishplusplus debug queue`   | View queue debug stats & performance metrics |
+| `/replenishplusplus debug queue`   | View replant queue stats                     |
 
 Aliases: `/rpp` and `/replenish` work for everything above.
 
@@ -63,8 +64,21 @@ Permissions:
 - `replenishplusplus.toggle.global` - op
 - `replenishplusplus.reload` - op
 - `replenishplusplus.debug` - op
+- `replenishplusplus.pad` - op
 - `replenishplusplus.update` - op
 - `replenishplusplus.*` - op (grants all of the above)
+
+## Teleport Pads
+
+Hypixel SkyBlock-style Teleport Pads. Grab one with `/rpp pad` (op), place it, done.
+
+- **Step on a pad and it warps you to its destination instantly** — Hypixel style. **Right-click** works too
+- Set pad A's destination to pad B and B's to A, and you warp back and forth all day (2 second cooldown between warps so linked pads can't ping-pong you)
+- Every pad gets its own color automatically — first pad red, next yellow, and so on — shown as a little block sitting on the pad and used as its icon in menus; change it anytime in the pad menu
+- **Sneak-right-click** opens the pad menu: set destination (pick from your other pads), arrival direction (keep your direction or snap to 8 fixed facings), pad icon (56 icons, like Hypixel), custom name (typed in chat), or pick the pad back up
+- Breaking a pad picks it up instead of destroying it
+- Pads belong to whoever placed them — only they can use and configure them, 56 per player, saved in `pads.yml`
+- Placing, walking on, or using a pad costs the server nothing per tick — the walk-on check is three int compares, everything else is click-driven
 
 ## Config
 
@@ -75,62 +89,66 @@ enabled: true
 requirePlayerSeed: true
 directPickup: true
 sneakToBypass: true
+messageStyle: CHAT
 replantDelayTicks: 1
 maxReplantsPerTick: 1024
 maxReplantsQueued: 4096
 checkUpdates: true
 ```
 
-> **Note:** `/rpp toggle global` writes the whole `config.yml` back from the last-loaded state. If you edited the file by hand, run `/rpp reload` first — otherwise toggling saves over your manual changes.
+> **Note:** `/rpp toggle global` writes the whole `config.yml` back from the last-loaded state. If you edited the file by hand, run `/rpp reload` first, otherwise toggling saves over your manual changes.
 
-<details>
-<summary>Full default config.yml</summary>
+Everything players see in chat lives in `plugins/ReplenishPlusPlus/en_us.yml` MiniMessage formatting, same `/rpp reload` applies it.
+
+### Full default config.yml
 
 ```yaml
 # ==============================================================================
 # ReplenishPlusPlus Configuration
 # ==============================================================================
 
-# Global master switch. If false, no crops will auto-replant anywhere.
-# (Players can still toggle their own personal auto-replant with /rpp toggle)
+# Master switch for the whole plugin. false = nothing replants for anyone.
+# Players can still turn it off just for themselves with /rpp toggle.
 enabled: true
 
-# If true, players must have the correct seed in their inventory to replant.
-# If false, crops will replant themselves magically without consuming seeds.
+# true = harvesting a fully grown crop eats 1 seed from your inventory and replants it.
+# false = crops replant for free, no seeds involved.
 requirePlayerSeed: true
 
-# If true, harvested crop drops go directly into the player's inventory.
-# If false, drops fall on the ground like vanilla Minecraft.
+# true = harvest drops go straight into your inventory.
+# false = drops fall on the ground like vanilla.
 directPickup: true
 
-# If true, sneaking while breaking a crop will bypass auto-replant entirely.
-# The crop will break normally and drop on the ground.
+# true = sneaking while breaking a crop skips auto-replant completely.
+# The crop just breaks normally and drops like it would without the plugin.
 sneakToBypass: true
 
-# How player-facing notifications (inventory full, need seed, wrong tool) are displayed.
-# CHAT       = Sends a normal chat message.
-# ACTION_BAR = Sends a less spammy message above the hotbar.
-# NONE       = Silences all player-facing text notifications (sounds still play).
+# How the plugin talks to players (inventory full, need seed, wrong tool).
+# CHAT       = normal chat message.
+# ACTION_BAR = above the hotbar, less spammy.
+# NONE       = no text at all (sounds still play).
 messageStyle: CHAT
 
-# The delay (in server ticks) before a broken crop is replanted. 20 ticks = 1 second.
+# Delay before a broken crop gets replanted, in ticks. 20 ticks = 1 second. (1 to 8191)
 replantDelayTicks: 1
 
-# Maximum number of crops that can be replanted in a single server tick.
-# Prevents lag if a massive farm is harvested all at once. (Minimum 256)
+# Max crops replanted in a single tick, so nobody can lag the server by
+# harvesting a giant farm all at once. (Minimum 256)
 maxReplantsPerTick: 1024
 
-# Maximum number of pending replants that can be held in the queue at once.
-# If the queue is full, replants will be dropped to prevent server lag. (Minimum 256)
+# Max replants waiting in the queue at once. If the queue is full, replants get
+# dropped instead of piling up and lagging the server. (Minimum 256)
 maxReplantsQueued: 4096
 
-# Should the plugin check for updates on startup and notify admins?
-# Read at startup only - /rpp reload does not apply changes to this.
+# Check GitHub for a new version on startup and tell admins?
+# Only read on startup - /rpp reload won't apply changes to this.
 checkUpdates: true
 
 # ------------------------------------------------------------------------------
 # Crop Settings
 # ------------------------------------------------------------------------------
+# Set any of these to false to turn auto-replant off for that crop.
+
 crops:
   wheat:       true
   carrots:     true
@@ -140,64 +158,51 @@ crops:
   beetroots:   true
 
 # ------------------------------------------------------------------------------
-# Messages
+# Sound Settings
 # ------------------------------------------------------------------------------
-# Docs: https://docs.advntr.dev/minimessage/format.html
-
-messages:
-  inventory-full: "<dark_gray>[<yellow>ReplenishPlusPlus<dark_gray>] <dark_gray>» <gray>Your inventory was full, so some items dropped on the ground instead."
-  requires-tool:  "<dark_gray>[<yellow>ReplenishPlusPlus<dark_gray>] <dark_gray>» <gray>You need a <yellow>{tool} <gray>to harvest <yellow>{crop}<gray>."
-  need-seed:      "<dark_gray>[<yellow>ReplenishPlusPlus<dark_gray>] <dark_gray>» <gray>You need <yellow>{count}x {seed} <gray>in your inventory to replant this."
-
-# ------------------------------------------------------------------------------
-# Sounds
-# ------------------------------------------------------------------------------
-# Docs: https://jd.papermc.io/paper/org/bukkit/Sound.html
-#         Invalid names log a warning and fall back to the default.
+# Sound names are forgiving - ENTITY_ITEM_PICKUP, entity.item.pickup and
+# minecraft:entity.item.pickup all work. An unknown name logs a warning and
+# falls back to the default. Full list: https://jd.papermc.io/paper/org/bukkit/Sound.html
 # volume: 0.0 (silent) to 1.0 (loudest)
-# pitch:  0.5 (low) to 2.0 (high); 1.0 = normal
-#
-# To disable a sound entirely, set enabled: false.
+# pitch:  0.5 (low) to 2.0 (high), 1.0 = normal
+# Set enabled: false to kill a sound completely.
 
 sounds:
-  # Played when crop drops are successfully added to the player's inventory.
+  # Crops landed in your inventory.
   pickup:
     enabled: true
     sound: ENTITY_ITEM_PICKUP
     volume: 1.0
     pitch: 1.0
 
-  # Played when the player's inventory is full and items drop on the ground.
+  # Your inventory was full and leftovers dropped on the ground.
   inventory-full:
     enabled: true
     sound: BLOCK_NOTE_BLOCK_BASS
     volume: 1.0
     pitch: 0.5
 
-  # Played when a player tries to harvest a crop with the wrong tool.
+  # You tried harvesting with the wrong tool.
   denied-tool:
     enabled: true
     sound: ENTITY_VILLAGER_NO
     volume: 1.0
     pitch: 0.5
 
-  # Played when a player tries to harvest a crop but lacks the required seed.
+  # You tried harvesting but had no seed to replant with.
   denied-seed:
     enabled: true
     sound: ENTITY_VILLAGER_NO
     volume: 1.0
     pitch: 0.5
 
-  # Played when a replant FAILS (e.g., chunk unloaded, block occupied, farmland trampled).
-  # Alerts the player that their seed was refunded/dropped instead of planted.
+  # A replant failed and your seed got dropped back instead of planted.
   replant-failed:
     enabled: true
     sound: ENTITY_ITEM_BREAK
     volume: 0.5
     pitch: 1.0
 ```
-
-</details>
 
 ## Contributions
 

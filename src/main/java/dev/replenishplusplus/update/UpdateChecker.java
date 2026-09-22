@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,18 +25,23 @@ public final class UpdateChecker {
     private static final Pattern TAG_PATTERN =
             Pattern.compile("\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
 
+    private static final Pattern VERSION_PATTERN = Pattern.compile(
+            "^[vV]?(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha|beta)\\.(\\d+)|-rc(\\d+))?(?:-mc(\\d+)\\.(\\d+)-paper)?$");
+
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(4))
             .build();
 
     private static final String USER_AGENT =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " + "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
 
     private final Plugin plugin;
-    private final String  currentVersion;
     private final boolean enabled;
+    private final String  currentVersion;
+    private final Version current;
 
     private volatile String  latestVersion   = "Unknown";
+    private volatile Version latest;
     private volatile boolean updateAvailable = false;
     private volatile boolean checkCompleted  = false;
     private volatile boolean checkFailed     = false;
@@ -45,7 +51,9 @@ public final class UpdateChecker {
     public UpdateChecker(Plugin plugin, boolean enabled) {
         this.plugin = plugin;
         this.enabled = enabled;
-        this.currentVersion = normalize(plugin.getPluginMeta().getVersion());
+        String raw = plugin.getPluginMeta().getVersion();
+        this.currentVersion = displayVersion(raw);
+        this.current = parseVersion(raw);
     }
 
     public boolean isEnabled()         { return enabled; }
@@ -61,10 +69,15 @@ public final class UpdateChecker {
         completionActions.add(action);
     }
     public boolean isLocalNewer() {
-        return checkCompleted && !checkFailed && compareVersions(currentVersion, latestVersion) > 0;
+        return checkCompleted && !checkFailed && current != null && latest != null && compare(current, latest) > 0;
     }
     public String getCurrentVersion()  { return currentVersion; }
     public String getLatestVersion()   { return latestVersion; }
+
+    public String downloadLink() {
+        return "<aqua><click:open_url:'" + RELEASES_URL + "'><hover:show_text:'<gray>Click to open release page'>"
+                + "<u>github.com/" + REPO + "</u></click>";
+    }
 
     public void check() {
         if (!enabled) return;
@@ -98,14 +111,21 @@ public final class UpdateChecker {
     }
 
     private void parseLatestVersion(String body) {
-        Matcher matcher = TAG_PATTERN.matcher(body);
-        if (!matcher.find()) {
+        String tag = extractTagName(body);
+        if (tag == null) {
             failCheck();
             console("<red>Update check failed: Malformed GitHub response.");
             return;
         }
-        latestVersion   = normalize(matcher.group(1));
-        updateAvailable = compareVersions(currentVersion, latestVersion) < 0;
+        Version parsed = parseVersion(tag);
+        if (parsed == null) {
+            failCheck();
+            console("<red>Update check failed: Unsupported release tag format '<white>" + tag + "<red>'.");
+            return;
+        }
+        latest          = parsed;
+        latestVersion   = displayVersion(tag);
+        updateAvailable = current != null && compare(current, parsed) < 0;
         checkCompleted  = true;
         logResult();
         fireCompletionActions();
@@ -135,10 +155,10 @@ public final class UpdateChecker {
     }
 
     private void logResult() {
-        int comparison = compareVersions(currentVersion, latestVersion);
+        int comparison = current == null || latest == null ? 0 : compare(current, latest);
         if (comparison < 0) {
-            console("<gray>Update available: <yellow>" + latestVersion
-                    + " <gray>(you're on <white>" + currentVersion + "<gray>).");
+            console("<gray>Replenish++ <gold>v" + latestVersion
+                    + " <yellow>is out! <gray>(you're on <white>v" + currentVersion + "<gray>)");
             console("<gray>Download: <aqua>" + RELEASES_URL);
         } else if (comparison > 0) {
             console("<gray>Update Status: <light_purple>Running unreleased/dev build "
@@ -150,40 +170,53 @@ public final class UpdateChecker {
     }
 
     private void console(String message) {
-        Bukkit.getConsoleSender().sendMessage(Messages.MINI_MESSAGE.deserialize(Messages.prefixed(message)));
+        Bukkit.getConsoleSender().sendMessage(Messages.prefixedRaw(message));
     }
 
-    private static String normalize(String version) {
-        if (version == null) return "";
-        String v = version.trim();
-        while (!v.isEmpty() && (v.charAt(0) == 'v' || v.charAt(0) == 'V')) {
-            v = v.substring(1);
-        }
-        return v.split("[-+]", 2)[0];
-    }
+    static Version parseVersion(String raw) {
+        if (raw == null) return null;
+        Matcher matcher = VERSION_PATTERN.matcher(raw.trim());
+        if (!matcher.matches()) return null;
 
-    private static int compareVersions(String left, String right) {
-        if (left.equals(right)) return 0;
-
-        String[] leftParts  = left.split("\\.");
-        String[] rightParts = right.split("\\.");
-        int length = Math.max(leftParts.length, rightParts.length);
-
-        for (int i = 0; i < length; i++) {
-            int leftValue  = i < leftParts.length  ? parseNumeric(leftParts[i])  : 0;
-            int rightValue = i < rightParts.length ? parseNumeric(rightParts[i]) : 0;
-            if (leftValue != rightValue) {
-                return Integer.compare(leftValue, rightValue);
-            }
-        }
-        return 0;
-    }
-
-    private static int parseNumeric(String part) {
         try {
-            return Integer.parseInt(part.replaceAll("[^0-9]", ""));
-        } catch (NumberFormatException e) {
-            return 0;
+            Channel channel;
+            int preNumber = 0;
+            if (matcher.group(4) != null) {
+                channel = Channel.valueOf(matcher.group(4).toUpperCase(Locale.ROOT));
+                preNumber = Integer.parseInt(matcher.group(5));
+            } else if (matcher.group(6) != null) {
+                channel = Channel.RC;
+                preNumber = Integer.parseInt(matcher.group(6));
+            } else {
+                channel = Channel.RELEASE;
+            }
+            return new Version(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)),
+                    Integer.parseInt(matcher.group(3)), channel, preNumber);
+        } catch (NumberFormatException overflow) {
+            return null;
         }
     }
+
+    static String extractTagName(String body) {
+        Matcher matcher = TAG_PATTERN.matcher(body);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    static int compare(Version left, Version right) {
+        int result;
+        if ((result = Integer.compare(left.major(), right.major())) != 0) return result;
+        if ((result = Integer.compare(left.minor(), right.minor())) != 0) return result;
+        if ((result = Integer.compare(left.patch(), right.patch())) != 0) return result;
+        if ((result = Integer.compare(left.channel().ordinal(), right.channel().ordinal())) != 0) return result;
+        return Integer.compare(left.preNumber(), right.preNumber());
+    }
+
+    static String displayVersion(String raw) {
+        if (raw == null) return "";
+        return raw.startsWith("v") || raw.startsWith("V") ? raw.substring(1) : raw;
+    }
+
+    enum Channel { ALPHA, BETA, RC, RELEASE }
+
+    record Version(int major, int minor, int patch, Channel channel, int preNumber) {}
 }

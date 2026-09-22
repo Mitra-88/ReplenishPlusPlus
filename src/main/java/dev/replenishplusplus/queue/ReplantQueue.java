@@ -60,11 +60,12 @@ public final class ReplantQueue {
     private BukkitTask scheduledTask;
     private volatile boolean started = false;
 
-    private World memoWorld;
-    private int memoChunkX = Integer.MIN_VALUE;
-    private int memoChunkZ = Integer.MIN_VALUE;
-    private int memoTick = -1;
-    private boolean memoLoaded;
+    private static final int CHUNK_MEMO_SIZE = 4;
+    private final World[] memoWorlds = new World[CHUNK_MEMO_SIZE];
+    private final long[] memoChunkKeys = new long[CHUNK_MEMO_SIZE];
+    private final int[] memoTicks = new int[CHUNK_MEMO_SIZE];
+    private final boolean[] memoLoaded = new boolean[CHUNK_MEMO_SIZE];
+    private int memoCursor;
 
     public ReplantQueue(ReplenishPlusPlus plugin, int maxPerTick, int maxPoolSize, AgeMetaRegistry ageMetaRegistry) {
         this.plugin = plugin;
@@ -102,7 +103,7 @@ public final class ReplantQueue {
                     replant(head);
                     flushed++;
                 } else {
-                    handleFailureForUnloadedChunk(poolMaterials[head], poolPlayerIds[head], seedWasConsumed(head));
+                    refundSeedToOnlinePlayer(poolMaterials[head], poolPlayerIds[head], seedWasConsumed(head));
                 }
                 release(head);
                 head = next;
@@ -119,7 +120,7 @@ public final class ReplantQueue {
                                      BlockFace cocoaFacing, UUID playerId, boolean seedConsumed) {
 
         if (!started) {
-            handleFailureForUnloadedChunk(block.getType(), playerId, seedConsumed);
+            refundSeedToOnlinePlayer(block.getType(), playerId, seedConsumed);
             return;
         }
 
@@ -179,7 +180,7 @@ public final class ReplantQueue {
                 final int abandoned = head;
                 WarningThrottle.log(plugin, Level.WARNING, WarningThrottle.Category.ABANDONED_REPLANT,
                         () -> "Abandoning replant at " + describe(abandoned) + " - chunk remained unloaded.");
-                handleFailureForUnloadedChunk(poolMaterials[head], poolPlayerIds[head], seedWasConsumed(head));
+                refundSeedToOnlinePlayer(poolMaterials[head], poolPlayerIds[head], seedWasConsumed(head));
                 release(head);
                 processed++;
             } else {
@@ -203,16 +204,19 @@ public final class ReplantQueue {
         int chunkX = x >> 4;
         int chunkZ = z >> 4;
         int tickNow = Bukkit.getCurrentTick();
-        // The tick stamp keeps the cached answer from leaking across ticks: a chunk that
-        // (un)loads between two ticks must be re-checked, or retries act on stale state.
-        if (tickNow != memoTick || chunkX != memoChunkX || chunkZ != memoChunkZ || world != memoWorld) {
-            memoTick = tickNow;
-            memoChunkX = chunkX;
-            memoChunkZ = chunkZ;
-            memoWorld = world;
-            memoLoaded = world.isChunkLoaded(chunkX, chunkZ);
+        long key = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+        for (int i = 0; i < CHUNK_MEMO_SIZE; i++) {
+            if (memoTicks[i] == tickNow && memoWorlds[i] == world && memoChunkKeys[i] == key) {
+                return memoLoaded[i];
+            }
         }
-        return memoLoaded;
+        boolean loaded = world.isChunkLoaded(chunkX, chunkZ);
+        int slot = memoCursor++ & (CHUNK_MEMO_SIZE - 1);
+        memoWorlds[slot] = world;
+        memoChunkKeys[slot] = key;
+        memoTicks[slot] = tickNow;
+        memoLoaded[slot] = loaded;
+        return loaded;
     }
 
     private void replant(int index) {
@@ -251,17 +255,10 @@ public final class ReplantQueue {
     private boolean replantNormal(World world, int x, int y, int z, SimpleCropInfo info, int targetAge) {
         Block block = world.getBlockAt(x, y, z);
         if (block.getType() != Material.AIR) return false;
-        if (!hasAnchor(info, world, x, y, z)) return false;
+        if (info.lacksAnchorAt(world, x, y, z)) return false;
 
         block.setBlockData(info.stateFor(targetAge), false);
         return true;
-    }
-
-    private boolean hasAnchor(SimpleCropInfo info, World world, int x, int y, int z) {
-        for (BlockFace face : info.validNeighborFaces()) {
-            if (info.plantsOn(world.getBlockAt(x + face.getModX(), y + face.getModY(), z + face.getModZ()).getType())) return true;
-        }
-        return false;
     }
 
     private boolean replantCocoa(World world, int x, int y, int z, CocoaCropInfo info, int targetAge, int faceOrdinal) {
@@ -287,10 +284,8 @@ public final class ReplantQueue {
         }
     }
 
-    private void handleFailureForUnloadedChunk(Material cropMaterial, UUID playerId, boolean seedConsumed) {
+    private void refundSeedToOnlinePlayer(Material cropMaterial, UUID playerId, boolean seedConsumed) {
         Player player = onlinePlayer(playerId);
-        // Quit players are deliberately not refunded: the chunk is unloaded, so the only refund
-        // locations would force-load chunks - exactly what the lag caps exist to prevent.
         if (player == null) return;
 
         refundSeed(cropMaterial, seedConsumed, player.getLocation());

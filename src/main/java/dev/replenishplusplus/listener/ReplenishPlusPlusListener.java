@@ -3,15 +3,16 @@ package dev.replenishplusplus.listener;
 import dev.replenishplusplus.ReplenishPlusPlus;
 import dev.replenishplusplus.config.ConfigCache;
 import dev.replenishplusplus.config.Messages;
+import dev.replenishplusplus.config.PlayerToggleManager;
 import dev.replenishplusplus.crop.AgeMetaRegistry;
 import dev.replenishplusplus.crop.CocoaCropInfo;
 import dev.replenishplusplus.crop.CropInfo;
 import dev.replenishplusplus.crop.CropType;
+import dev.replenishplusplus.dev.DevModeManager;
 import dev.replenishplusplus.util.DropPickupManager;
 import dev.replenishplusplus.util.LocationUtil;
 import dev.replenishplusplus.util.SeedIndex;
 import dev.replenishplusplus.util.TextUtil;
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
@@ -41,12 +42,16 @@ public final class ReplenishPlusPlusListener implements Listener {
 
     private final ReplenishPlusPlus plugin;
     private final AgeMetaRegistry ageMetaRegistry;
+    private final PlayerToggleManager playerToggleManager;
+    private final DevModeManager devModeManager;
     private final Map<BlockBreakEvent, HarvestPlan> pendingHarvests = new WeakHashMap<>();
     private final Map<UUID, Long> messageCooldown = new HashMap<>();
 
     public ReplenishPlusPlusListener(ReplenishPlusPlus plugin, AgeMetaRegistry ageMetaRegistry) {
         this.plugin = plugin;
         this.ageMetaRegistry = ageMetaRegistry;
+        this.playerToggleManager = plugin.getPlayerToggleManager();
+        this.devModeManager = plugin.getDevModeManager();
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
@@ -62,13 +67,12 @@ public final class ReplenishPlusPlusListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onBlockBreakCommit(BlockBreakEvent event) {
         HarvestPlan plan = pendingHarvests.remove(event);
-        // isDropItems true here means another plugin re-enabled drops after our suppression:
-        // they own the break now, same as a decide-phase bail-out. Pay nothing (dupe protection).
         if (plan == null || event.isCancelled() || event.isDropItems()) return;
 
         Player player = event.getPlayer();
         boolean replant = !plan.seedConsumed() || SeedIndex.consume(player, plan.crop().seed());
         if (!replant) notifyNeedSeed(player, plan.config(), plan.crop());
+        devModeManager.onHarvest(player.getUniqueId(), plan.crop(), plan.mature());
 
         if (replant) {
             plugin.enqueueReplant(event.getBlock(), plan.config().replantDelayTicks(), plan.replantedAge(),
@@ -87,14 +91,15 @@ public final class ReplenishPlusPlusListener implements Listener {
         if (isInNonSurvivalMode(player)) return;
         if (!event.isDropItems()) return;
 
-        ConfigCache config = plugin.getConfigCache();
-        if (!config.enabled()) return;
-        if (plugin.getPlayerToggleManager().isDisabled(player)) return;
-        if (config.sneakToBypass() && player.isSneaking()) return;
-
         Block block = event.getBlock();
         CropType crop = CropType.fromMaterial(block.getType());
-        if (crop == null || !plugin.isCropEnabled(crop)) return;
+        if (crop == null) return;
+
+        ConfigCache config = plugin.getConfigCache();
+        if (!config.enabled()) return;
+        if (!config.isCropEnabled(crop)) return;
+        if (playerToggleManager.isDisabled(player)) return;
+        if (config.sneakToBypass() && player.isSneaking()) return;
 
         ItemStack tool = player.getInventory().getItemInMainHand();
         if (!crop.requiredTool().matches(tool.getType())) {
@@ -103,7 +108,7 @@ public final class ReplenishPlusPlusListener implements Listener {
         }
 
         CropInfo info = ageMetaRegistry.get(crop.material());
-        if (info == null || !hasValidAnchor(block, info)) return;
+        if (info == null || info.lacksAnchorAt(block.getWorld(), block.getX(), block.getY(), block.getZ())) return;
 
         BlockData blockData = block.getBlockData();
         if (!(blockData instanceof Ageable ageable)) return;
@@ -121,10 +126,13 @@ public final class ReplenishPlusPlusListener implements Listener {
             seedConsumed = true;
         }
 
+        int replantedAge = devModeManager.anyActive() && config.dev().fullAgeReplant() && devModeManager.isActive(player.getUniqueId())
+                ? info.maximumAge()
+                : wasMature ? 0 : originalAge;
         event.setDropItems(false);
-        pendingHarvests.put(event, new HarvestPlan(config, crop, drops, wasMature ? 0 : originalAge,
+        pendingHarvests.put(event, new HarvestPlan(config, crop, drops, replantedAge,
                 info instanceof CocoaCropInfo cocoa ? determineCocoaFacing(cocoa, block, blockData, player) : null,
-                seedConsumed));
+                seedConsumed, wasMature));
     }
 
     private boolean isInNonSurvivalMode(Player player) {
@@ -132,10 +140,6 @@ public final class ReplenishPlusPlusListener implements Listener {
             case CREATIVE, SPECTATOR, ADVENTURE -> true;
             case SURVIVAL -> false;
         };
-    }
-
-    private boolean hasValidAnchor(Block block, CropInfo info) {
-        return findAnchorFace(info, block) != null;
     }
 
     private BlockFace findAnchorFace(CropInfo info, Block block) {
@@ -148,35 +152,19 @@ public final class ReplenishPlusPlusListener implements Listener {
     private void notifyWrongTool(Player player, ConfigCache config, CropType crop) {
         if (isMessageCooldownActive(player)) return;
         messageCooldown.put(player.getUniqueId(), System.currentTimeMillis());
-        String template = normalizeTemplate(config.requiresToolMessage(), "crop", "tool");
-        Component component = Messages.MINI_MESSAGE.deserialize(
-                template,
-                Placeholder.parsed("crop", crop.displayName()),
-                Placeholder.parsed("tool", crop.requiredTool().displayName())
-        );
-        config.messageStyle().send(player, component);
+        config.messageStyle().send(player, Messages.prefixed("harvest.wrong-tool",
+                Placeholder.unparsed("crop", crop.displayName()),
+                Placeholder.unparsed("tool", crop.requiredTool().displayName())));
         config.deniedToolSound().play(player);
     }
 
     private void notifyNeedSeed(Player player, ConfigCache config, CropType crop) {
         if (isMessageCooldownActive(player)) return;
         messageCooldown.put(player.getUniqueId(), System.currentTimeMillis());
-        String template = normalizeTemplate(config.needSeedMessage(), "count", "seed");
-        Component component = Messages.MINI_MESSAGE.deserialize(
-                template,
-                Placeholder.parsed("count", "1"),
-                Placeholder.parsed("seed", TextUtil.prettyName(crop.seed().name()))
-        );
-        config.messageStyle().send(player, component);
+        config.messageStyle().send(player, Messages.prefixed("harvest.need-seed",
+                Placeholder.unparsed("count", "1"),
+                Placeholder.unparsed("seed", TextUtil.prettyName(crop.seed().name()))));
         config.deniedSeedSound().play(player);
-    }
-
-    private static String normalizeTemplate(String raw, String... tags) {
-        String result = raw;
-        for (String tag : tags) {
-            result = result.replace("{" + tag + "}", "<" + tag + ">");
-        }
-        return result;
     }
 
     private void distributeDrops(Player player, Block block, ConfigCache config, Collection<ItemStack> drops) {
@@ -211,5 +199,6 @@ public final class ReplenishPlusPlusListener implements Listener {
             Collection<ItemStack> drops,
             int replantedAge,
             BlockFace cocoaFacing,
-            boolean seedConsumed) {}
+            boolean seedConsumed,
+            boolean mature) {}
 }

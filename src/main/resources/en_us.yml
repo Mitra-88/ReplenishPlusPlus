@@ -1,0 +1,70 @@
+# ==============================================================================
+# ReplenishPlusPlus — en_us (everything players see in chat)
+# ==============================================================================
+# MiniMessage format: https://docs.advntr.dev/minimessage/format.html
+# Placeholders like <tool>, <crop>, <seed> are filled in by the plugin.
+# Missing or broken keys fall back to the built-in English defaults.
+# Run /rpp reload after editing.
+
+prefix: "<gradient:#FFD700:#FF9D00><bold>Replenish++</bold></gradient> <dark_gray>»</dark_gray>"
+
+# When a crop can't be auto-replanted for you.
+harvest:
+  wrong-tool: "<gray>You need a <yellow><tool> <gray>to farm <yellow><crop><gray>."
+  need-seed: "<gray>You need <yellow><count>x <seed> <gray>in your inventory to replant this."
+  inventory-full: "<gray>Your inventory is full <dark_gray>— <gray>the rest dropped on the ground."
+
+# /rpp toggle and /rpp toggle global
+toggle:
+  on: "<gray>Auto-replant is <green>on</green> <dark_gray>— <gray>break a crop, it replants itself."
+  off: "<gray>Auto-replant is <red>off</red> <dark_gray>— <gray>crops break like vanilla."
+  global-on: "<gray>Global replanting is <green>on</green> <dark_gray>— <gray>everyone's crops replant again."
+  global-off: "<gray>Global replanting is <red>off</red> <dark_gray>— <gray>nobody's crops replant."
+  global-not-saved: "<yellow>config.yml looks broken, so this wasn't saved. Fix the file and run /rpp reload, or it resets on restart."
+
+# Teleport Pads
+pad:
+  given: "<gray>Here's a pad <dark_gray>— <gray>place it, step on it, warp. Sneak-right-click it to set where it goes."
+  placed: "<gray>Pad placed <dark_gray>— <gray>sneak-right-click it to set where it warps you."
+  picked-up: "<gray>Pad picked up."
+  not-yours: "<red>That pad isn't yours."
+  no-destination: "<gray>This pad has no destination yet <dark_gray>— <gray>pick one below."
+  destination-set: "<gray>Destination set to <yellow><pad><gray>. Step on the pad to warp."
+  destination-gone: "<red>The pad it warped to is gone <dark_gray>— <gray>pick a new one."
+  renamed: "<gray>Pad renamed to <yellow><name><gray>."
+  name-cleared: "<gray>Pad name cleared."
+  name-prompt: "<gray>Type the new name in chat <dark_gray>(<gray>empty message clears it<dark_gray>)<gray>."
+  limit: "<red>That's the pad limit <dark_gray>(<white><limit><red><dark_gray>)<red>. Pick some up first."
+  warped: "<yellow>Warped to <pad>"
+
+# Ops with the update permission.
+update:
+  available: "<yellow>Replenish++ <gold>v<latest> <yellow>is out! <dark_gray>(<gray>you're on <white>v<current><dark_gray>)"
+
+# /rpp menu and /rpp help — the static screens.
+menu:
+  main: |
+
+    <dark_gray>────────  <gradient:#FFD700:#FF9D00><bold>Replenish++</bold></gradient> <gray>v<version>  <dark_gray>────────
+    <yellow>/rpp help <dark_gray>· <gray>how the plugin works
+    <yellow>/rpp status <dark_gray>· <gray>what's on right now
+    <yellow>/rpp toggle <dark_gray>· <gray>replanting just for you
+    <yellow>/rpp toggle global <dark_gray>· <gray>replanting for everyone
+    <yellow>/rpp pad <dark_gray>· <gray>grab a Teleport Pad
+    <yellow>/rpp version <dark_gray>· <gray>version + update check
+    <yellow>/rpp reload <dark_gray>· <gray>reload config + messages
+
+  help: |
+
+    <dark_gray>────────  <gradient:#FFD700:#FF9D00><bold>Replenish++</bold></gradient>  <dark_gray>────────
+    <gradient:#FFD700:#FF9D00><bold>Farming</bold></gradient>
+    <dark_gray>  · <gray>Break a crop with the right tool — a <yellow>hoe <gray>for crops, an <yellow>axe <gray>for cocoa.
+    <dark_gray>  · <gray>It replants itself and eats one seed from your inventory.
+    <dark_gray>  · <gray>Sneak while breaking if you want the vanilla behavior.
+    <dark_gray>  · <gray>Keep some spare seeds — at full speed you burn through them fast.
+    <gradient:#FFD700:#FF9D00><bold>Teleport Pads</bold></gradient>
+    <dark_gray>  · <gray>Grab one with <yellow>/rpp pad<gray>, place it, step on it to warp.
+    <dark_gray>  · <gray>Sneak-right-click a pad to set where it goes.
+    <gradient:#FFD700:#FF9D00><bold>Good to know</bold></gradient>
+    <dark_gray>  · <gray><yellow>/rpp toggle <gray>turns replanting off just for you.
+    <dark_gray>  · <gray><yellow>/rpp status <gray>shows everything that's on.

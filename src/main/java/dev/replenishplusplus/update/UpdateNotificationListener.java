@@ -2,6 +2,7 @@ package dev.replenishplusplus.update;
 
 import dev.replenishplusplus.ReplenishPlusPlus;
 import dev.replenishplusplus.config.Messages;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -36,11 +37,9 @@ public final class UpdateNotificationListener implements Listener {
 
     private void notify(Player player, UpdateChecker uc) {
         if (!uc.isUpdateAvailable()) return;
-        player.sendMessage(Messages.MINI_MESSAGE.deserialize(Messages.prefixed(
-                "<yellow>A new version is available! <dark_gray>(<white>v" + uc.getCurrentVersion() +
-                        " <gray>➔ <yellow>v" + uc.getLatestVersion() + "<dark_gray>)")));
-        player.sendMessage(Messages.MINI_MESSAGE.deserialize(Messages.prefixed(
-                "<gray>Download: <aqua><click:open_url:'" + UpdateChecker.RELEASES_URL + "'>" +
-                        "<hover:show_text:'<gray>Click to open release page'><u>github.com/Mitra-88/ReplenishPlusPlus</u></click>")));
+        player.sendMessage(Messages.prefixed("update.available",
+                Placeholder.unparsed("current", uc.getCurrentVersion()),
+                Placeholder.unparsed("latest", uc.getLatestVersion())));
+        player.sendMessage(Messages.prefixedRaw("<gray>Download: " + uc.downloadLink()));
     }
 }
