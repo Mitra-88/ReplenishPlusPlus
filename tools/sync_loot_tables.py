@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from __future__ import annotations
+
 import argparse
 import concurrent.futures
 import hashlib
@@ -61,7 +63,7 @@ class _NotRangeable(Exception):
 
 
 class Ui:
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(self, console: Console | None = None):
         self.console = console or Console()
 
     @staticmethod
@@ -347,7 +349,9 @@ def download_all(
                 raise ToolError(http_error_text(url, error)) from error
             if rangeable and total >= PARALLEL_MIN_BYTES:
                 ui.info(f"{label} via {DOWNLOAD_THREADS} parallel connections")
-                if not _parallel_download(session, url, total, destination, progress, label):
+                if not _parallel_download(
+                    session, url, total, destination, progress, label
+                ):
                     ui.info(
                         "server ignored range requests, falling back to a single stream"
                     )
@@ -371,7 +375,9 @@ def pom_version(repo: Path) -> str:
     return match.group(1).strip()
 
 
-def resolve_vanilla_manifest(mc: str, session: requests.Session, ui: Ui) -> tuple[str, str]:
+def resolve_vanilla_manifest(
+    mc: str, session: requests.Session, ui: Ui
+) -> tuple[str, str]:
     with ui.spin("querying Mojang version manifest"):
         manifest = http_json(MANIFEST_URL, session)
     versions = manifest.get("versions")
@@ -404,7 +410,9 @@ def resolve_vanilla_manifest(mc: str, session: requests.Session, ui: Ui) -> tupl
     return server["url"], server["sha1"]
 
 
-def resolve_vanilla(args: argparse.Namespace, mc: str, session: requests.Session, ui: Ui) -> tuple[str, str]:
+def resolve_vanilla(
+    args: argparse.Namespace, mc: str, session: requests.Session, ui: Ui
+) -> tuple[str, str]:
     if args.url:
         sha = args.sha or _sha_from_url(args.url)
         if not sha:
@@ -455,7 +463,9 @@ def _select_build(builds: list[dict]) -> tuple[str | None, dict | None]:
     return channel, newest
 
 
-def resolve_paper(args: argparse.Namespace, session: requests.Session, ui: Ui) -> tuple[str, str, str]:
+def resolve_paper(
+    args: argparse.Namespace, session: requests.Session, ui: Ui
+) -> tuple[str, str, str]:
     with ui.spin("querying the PaperMC Fill API"):
         project = http_json(f"{FILL_BASE}/projects/paper", session)
     slugs = _version_slugs(project)
