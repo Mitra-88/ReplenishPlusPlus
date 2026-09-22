@@ -44,14 +44,16 @@ import java.util.logging.Level;
 
 public final class ReplenishPlusPlusListener implements Listener {
 
-    private static final long MESSAGE_COOLDOWN_MS = 2000L;
+    private static final long WRONG_TOOL_COOLDOWN_MS = 2000L;
+    private static final long NEED_SEED_COOLDOWN_MS = 5000L;
 
     private final ReplenishPlusPlus plugin;
     private final AgeMetaRegistry ageMetaRegistry;
     private final PlayerToggleManager playerToggleManager;
     private final DevModeManager devModeManager;
     private final Map<BlockBreakEvent, HarvestPlan> pendingHarvests = new WeakHashMap<>();
-    private final Map<UUID, Long> messageCooldown = new HashMap<>();
+    private final Map<UUID, Long> wrongToolCooldown = new HashMap<>();
+    private final Map<UUID, Long> needSeedCooldown = new HashMap<>();
 
     public ReplenishPlusPlusListener(ReplenishPlusPlus plugin, AgeMetaRegistry ageMetaRegistry) {
         this.plugin = plugin;
@@ -89,7 +91,8 @@ public final class ReplenishPlusPlusListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        messageCooldown.remove(event.getPlayer().getUniqueId());
+        wrongToolCooldown.remove(event.getPlayer().getUniqueId());
+        needSeedCooldown.remove(event.getPlayer().getUniqueId());
     }
 
     private void prepareHarvest(BlockBreakEvent event) {
@@ -184,8 +187,9 @@ public final class ReplenishPlusPlusListener implements Listener {
     }
 
     private void notifyWrongTool(Player player, ConfigCache config, CropType crop) {
-        if (isMessageCooldownActive(player)) return;
-        messageCooldown.put(player.getUniqueId(), System.currentTimeMillis());
+        UUID playerId = player.getUniqueId();
+        if (isOnCooldown(wrongToolCooldown, playerId, WRONG_TOOL_COOLDOWN_MS)) return;
+        wrongToolCooldown.put(playerId, System.currentTimeMillis());
         config.messageStyle().send(player, Messages.prefixed("harvest.wrong-tool",
                 Placeholder.unparsed("crop", crop.displayName()),
                 Placeholder.unparsed("tool", crop.requiredTool().displayName())));
@@ -193,8 +197,9 @@ public final class ReplenishPlusPlusListener implements Listener {
     }
 
     private void notifyNeedSeed(Player player, ConfigCache config, CropType crop) {
-        if (isMessageCooldownActive(player)) return;
-        messageCooldown.put(player.getUniqueId(), System.currentTimeMillis());
+        UUID playerId = player.getUniqueId();
+        if (isOnCooldown(needSeedCooldown, playerId, NEED_SEED_COOLDOWN_MS)) return;
+        needSeedCooldown.put(playerId, System.currentTimeMillis());
         config.messageStyle().send(player, Messages.prefixed("harvest.need-seed",
                 Placeholder.unparsed("count", "1"),
                 Placeholder.unparsed("seed", TextUtil.prettyName(crop.seed().name()))));
@@ -222,9 +227,9 @@ public final class ReplenishPlusPlusListener implements Listener {
         return findAnchorFace(cocoa, block);
     }
 
-    private boolean isMessageCooldownActive(Player player) {
-        Long last = messageCooldown.get(player.getUniqueId());
-        return last != null && System.currentTimeMillis() - last < MESSAGE_COOLDOWN_MS;
+    private boolean isOnCooldown(Map<UUID, Long> cooldowns, UUID playerId, long durationMs) {
+        Long last = cooldowns.get(playerId);
+        return last != null && System.currentTimeMillis() - last < durationMs;
     }
 
     private record HarvestPlan(

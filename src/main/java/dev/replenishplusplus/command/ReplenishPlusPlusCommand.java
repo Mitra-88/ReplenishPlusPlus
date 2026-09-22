@@ -106,9 +106,9 @@ public final class ReplenishPlusPlusCommand {
         }
         boolean enabled = plugin.getDevModeManager().toggle(player);
         if (enabled) {
-            sendPrefixed(sender, "Dev mode <green><bold>ENABLED<gray>. Water acts like dry ground, ice can't form anywhere, your inventory auto-clears (tools + one seed stack stay), and your crops replant fully grown.");
+            sendPrefixed(sender, "Dev mode <green><bold>ENABLED</bold></green><gray>: crops replant fully grown, placed crops pop instantly, water acts like land, ice can't form anywhere, and your inventory auto-clears (tools plus one seed stack stay). Profile with <white>/spark profiler<gray>, the harvest report prints on stop.");
         } else {
-            sendPrefixed(sender, "Dev mode <red><bold>DISABLED<gray>. Everything is back to vanilla for you.");
+            sendPrefixed(sender, "Dev mode <red><bold>DISABLED</bold></red><gray>: everything is back to vanilla for you.");
         }
     }
 

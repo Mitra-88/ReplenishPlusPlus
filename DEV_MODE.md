@@ -42,12 +42,16 @@ are read.
 ## Spark counter workflow
 
 1. `/rpp dev`, you get the ENABLED message.
-2. `/spark profiler start`, the plugin snapshots your session totals and tells
-   you "Harvest tracking started, you had N crops before this window".
+2. `/spark profiler start` (add a number, like `/spark profiler start 60`, and the
+   profiler stops itself after that many seconds), the plugin snapshots your session
+   totals and tells you "Harvest tracking started, you had N crops before this window".
 3. Farm.
-4. `/spark profiler stop`, gradient report to the console and every dev player:
-   window duration, crops before, harvested during the window, blocks per second,
-   and crops the auto-clear deleted in that window.
+4. `/spark profiler stop`, or just wait out the timeout: the **Harvest Report** prints
+   to you, the console, and every dev player. It shows the window length, crops
+   harvested with a crops-per-second rate, a per-crop breakdown, how many items the
+   auto-clear deleted in that window, and your session totals. The report always
+   follows whoever ran the profiler, so you get it even if you toggled dev mode off
+   before stopping.
 
 Bare `/spark profiler` and flag forms like `/spark profiler --memory true` count
 as toggles; anything else spark-related is ignored. Works from the console too.

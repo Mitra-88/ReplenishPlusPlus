@@ -11,31 +11,31 @@ prefix: "<gradient:#FFD700:#FF9D00><bold>Replenish++</bold></gradient> <dark_gra
 # When a crop can't be auto-replanted for you.
 harvest:
   wrong-tool: "<gray>You need a <yellow><tool> <gray>to farm <yellow><crop><gray>."
-  need-seed: "<gray>You need <yellow><count>x <seed> <gray>in your inventory to replant this."
-  inventory-full: "<gray>Your inventory is full <dark_gray>: <gray>the rest dropped on the ground."
+  need-seed: "<gray>Out of <yellow><seed><gray>! Grab <yellow><count>x <gray>to keep the auto-replant going."
+  inventory-full: "<yellow>Inventory full <dark_gray>· <gray>leftovers dropped on the ground."
 
 # /rpp toggle and /rpp toggle global
 toggle:
-  on: "<gray>Auto-replant is <green>on</green> <dark_gray>: <gray>break a crop, it replants itself."
-  off: "<gray>Auto-replant is <red>off</red> <dark_gray>: <gray>crops break like vanilla."
-  global-on: "<gray>Global replanting is <green>on</green> <dark_gray>: <gray>everyone's crops replant again."
-  global-off: "<gray>Global replanting is <red>off</red> <dark_gray>: <gray>nobody's crops replant."
+  on: "<gray>Auto-replant <green>on</green> <dark_gray>· <gray>break a crop, it replants itself."
+  off: "<gray>Auto-replant <red>off</red> <dark_gray>· <gray>crops break like vanilla."
+  global-on: "<gray>Global replanting <green>on</green> <dark_gray>· <gray>everyone's crops replant again."
+  global-off: "<gray>Global replanting <red>off</red> <dark_gray>· <gray>nobody's crops replant."
   global-not-saved: "<yellow>config.yml looks broken, so this wasn't saved. Fix the file and run /rpp reload, or it resets on restart."
 
 # Teleport Pads
 pad:
-  given: "<gray>Here's a pad <dark_gray>: <gray>place it, step on it, warp. Sneak-right-click it to set where it goes."
-  placed: "<gray>Pad placed <dark_gray>: <gray>sneak-right-click it to set where it warps you."
-  picked-up: "<gray>Pad picked up."
+  given: "<gray>Here's a pad <dark_gray>· <gray>place it, step on it, warp. Sneak-right-click it to set where it goes."
+  placed: "<gray>Pad placed <dark_gray>· <gray>sneak-right-click it to set where it warps you."
+  picked-up: "<green>Pad picked up."
   not-yours: "<red>That pad isn't yours."
-  no-destination: "<gray>This pad has no destination yet <dark_gray>: <gray>pick one below."
+  no-destination: "<gray>This pad has no destination yet <dark_gray>· <gray>pick one below."
   destination-set: "<gray>Destination set to <yellow><pad><gray>. Step on the pad to warp."
-  destination-gone: "<red>The pad it warped to is gone <dark_gray>: <gray>pick a new one."
+  destination-gone: "<red>The pad it warped to is gone <dark_gray>· <gray>pick a new one."
   renamed: "<gray>Pad renamed to <yellow><name><gray>."
   name-cleared: "<gray>Pad name cleared."
   name-prompt: "<gray>Type the new name in chat <dark_gray>(<gray>empty message clears it<dark_gray>)<gray>."
-  limit: "<red>That's the pad limit <dark_gray>(<white><limit><red><dark_gray>)<red>. Pick some up first."
-  warped: "<yellow>Warped to <pad>"
+  limit: "<red>Pad limit reached <dark_gray>(<white><limit><red><dark_gray>)<red>. Pick some up first."
+  warped: "<gray>Warped to <yellow><pad><gray>."
 
 # Ops with the update permission.
 update:

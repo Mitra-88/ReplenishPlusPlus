@@ -31,12 +31,12 @@ public final class DevModeListener implements Listener {
 
     @EventHandler
     public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
-        devMode.onSparkAction(DevModeManager.parseSparkCommand(event.getMessage()));
+        devMode.onSparkCommand(event.getMessage(), event.getPlayer().getUniqueId());
     }
 
     @EventHandler
     public void onConsoleCommand(ServerCommandEvent event) {
-        devMode.onSparkAction(DevModeManager.parseSparkCommand(event.getCommand()));
+        devMode.onSparkCommand(event.getCommand(), null);
     }
 
     @EventHandler
