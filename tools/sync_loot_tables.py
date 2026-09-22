@@ -2,21 +2,26 @@
 """Sync loot_tables/ for ReplenishPlusPlus from the vanilla Minecraft server jar."""
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import os
+import platform
 import re
 import requests
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import traceback
 import zipfile
 from pathlib import Path
 from rich.console import Console
 from rich.markup import escape
-from rich.progress import BarColumn, DownloadColumn, Progress, TaskProgressColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn, TransferSpeedColumn
+from rich.panel import Panel
+from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn, TransferSpeedColumn
 
 MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 FILL_BASE = "https://fill.papermc.io/v3"
@@ -25,10 +30,20 @@ TABLE_DIR = "data/minecraft/loot_table/blocks"
 CHANNELS = ("STABLE", "DEFAULT", "EXPERIMENTAL")
 DEFAULT_UA = "ReplenishPlusPlus-loot-sync/1.0 (+https://github.com/Mitra-88/ReplenishPlusPlus)"
 CHUNK = 1 << 20
+DOWNLOAD_THREADS = 8
+PART_RETRIES = 3
+BACKOFF_SECONDS = 0.5
+CONNECT_TIMEOUT = 10
+READ_TIMEOUT = 30
+PARALLEL_MIN_BYTES = 4 << 20
 STEPS = 5
 
 
 class ToolError(Exception):
+    pass
+
+
+class _NotRangeable(Exception):
     pass
 
 
@@ -54,8 +69,15 @@ class Ui:
     def line(self, text=""):
         self.console.print(text)
 
+    def banner(self, repo):
+        system = escape(platform.system() or "unknown")
+        release = escape(platform.release() or "")
+        machine = escape(platform.machine() or "unknown")
+        body = f"[bold]python {escape(platform.python_version())}[/bold] on {system} {release} {machine}\n[dim]{escape(str(repo))}[/dim]"
+        self.console.print(Panel(body, title=":zap: ReplenishPlusPlus loot table sync", border_style="gold3", title_align="left"))
+
     def step(self, number, text):
-        self.console.print(f"[cyan]{escape(f'[{number}/{STEPS}]')}[/cyan] {text}")
+        self.console.print(f"[cyan]{escape(f'[{number}/{STEPS}]')}[/cyan] [bold]{text}[/bold]")
 
     def ok(self, text):
         self.console.print(f"  [green]✓[/green] {escape(text)}")
@@ -67,17 +89,18 @@ class Ui:
         self.console.print(f"  [dim]{escape(text)}[/dim]")
 
     def spin(self, text):
-        return self.console.status(text)
+        return self.console.status(text, spinner="aesthetic")
 
     def progress_bar(self):
         return Progress(
+            SpinnerColumn(spinner_name="dots", style="bold cyan", finished_text="[green]✓[/green]"),
             TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
+            BarColumn(bar_width=30, complete_style="cyan", finished_style="green"),
             TaskProgressColumn(),
             DownloadColumn(binary_units=True),
             TransferSpeedColumn(),
             TimeElapsedColumn(),
-            TimeRemainingColumn(),
+            TimeRemainingColumn(compact=True),
             console=self.console,
             transient=True,
         )
@@ -86,6 +109,9 @@ class Ui:
 def http_session(user_agent):
     session = requests.Session()
     session.headers.update({"User-Agent": user_agent})
+    adapter = requests.adapters.HTTPAdapter(pool_connections=16, pool_maxsize=16)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
     return session
 
 
@@ -98,7 +124,7 @@ def http_error_text(url, error):
 
 def http_json(url, session):
     try:
-        response = session.get(url, timeout=(30, 60))
+        response = session.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
         response.raise_for_status()
         return response.json()
     except requests.exceptions.JSONDecodeError as error:
@@ -115,29 +141,116 @@ def digest_algorithm(expected):
     raise ToolError(f"expected digest has {len(expected)} hex chars, want 40 (sha1) or 64 (sha256)")
 
 
-def http_download(url, session, expected_sha, destination, ui, progress, label):
+def verify_digest(path, expected_sha, ui):
     algorithm = digest_algorithm(expected_sha)
-    try:
-        with session.get(url, stream=True, timeout=(30, 60)) as response:
-            response.raise_for_status()
-            total = int(response.headers.get("Content-Length") or 0)
-            task = progress.add_task(label, total=total or None)
-            done = 0
-            with open(destination, "wb") as target:
-                for chunk in response.iter_content(chunk_size=CHUNK):
-                    target.write(chunk)
-                    done += len(chunk)
-                    progress.update(task, completed=done)
-            progress.remove_task(task)
-    except requests.exceptions.RequestException as error:
-        raise ToolError(f"download failed: {http_error_text(url, error)}") from error
-    with open(destination, "rb") as source:
+    with open(path, "rb") as source:
         actual = hashlib.file_digest(source, algorithm).hexdigest()
     if actual != expected_sha.lower():
         raise ToolError(
             f"integrity check failed: expected {algorithm} {expected_sha}, got {actual}, the file changed upstream or was corrupted in transit"
         )
     ui.ok(f"{algorithm} verified: {actual}")
+
+
+def _probe_download(session, url):
+    with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
+        response.raise_for_status()
+        total = int(response.headers.get("Content-Length") or 0)
+        rangeable = response.headers.get("Accept-Ranges", "") == "bytes"
+    return total, rangeable
+
+
+def _fetch_part(session, url, start, end, file, lock, progress, task, part_index):
+    headers = {"Range": f"bytes={start}-{end}", "Accept-Encoding": "identity"}
+    for attempt in range(PART_RETRIES):
+        try:
+            with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), headers=headers) as response:
+                if response.status_code != 206:
+                    raise _NotRangeable()
+                response.raise_for_status()
+                position = start
+                for chunk in response.iter_content(chunk_size=CHUNK):
+                    with lock:
+                        file.seek(position)
+                        file.write(chunk)
+                    position += len(chunk)
+                    progress.update(task, advance=len(chunk))
+                if position != end + 1:
+                    raise IOError(f"short read: got {position - start} of {end + 1 - start} bytes")
+                return
+        except _NotRangeable:
+            raise
+        except (requests.exceptions.RequestException, IOError) as error:
+            if attempt == PART_RETRIES - 1:
+                raise ToolError(f"part {part_index} failed after {PART_RETRIES} attempts: {error}") from error
+            time.sleep(BACKOFF_SECONDS * 2 ** attempt)
+
+
+def _parallel_download(session, url, total, destination, ui, progress, label):
+    part_size = -(-total // DOWNLOAD_THREADS)
+    task = progress.add_task(label, total=total)
+    lock = threading.Lock()
+    range_unsupported = False
+    failure = None
+    with open(destination, "wb") as file:
+        file.truncate(total)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=DOWNLOAD_THREADS, thread_name_prefix="dl") as pool:
+            futures = [
+                pool.submit(_fetch_part, session, url, part * part_size, min(part * part_size + part_size, total) - 1,
+                            file, lock, progress, task, part)
+                for part in range(DOWNLOAD_THREADS)
+            ]
+            for future in futures:
+                try:
+                    future.result()
+                except _NotRangeable:
+                    range_unsupported = True
+                    for pending in futures:
+                        pending.cancel()
+                except concurrent.futures.CancelledError:
+                    pass
+                except ToolError as error:
+                    failure = failure or error
+    progress.remove_task(task)
+    if range_unsupported:
+        return False
+    if failure:
+        raise failure
+    return True
+
+
+def _stream_download(session, url, destination, ui, progress, label, total):
+    with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), headers={"Accept-Encoding": "identity"}) as response:
+        response.raise_for_status()
+        task = progress.add_task(label, total=total or None)
+        done = 0
+        with open(destination, "wb") as target:
+            for chunk in response.iter_content(chunk_size=CHUNK):
+                target.write(chunk)
+                done += len(chunk)
+                progress.update(task, completed=done)
+    progress.remove_task(task)
+
+
+def download_all(session, downloads, scratch, ui):
+    paths = []
+    with ui.progress_bar() as progress:
+        for index, (url, sha, label) in enumerate(downloads):
+            destination = Path(scratch) / f"jar{index}.jar"
+            try:
+                total, rangeable = _probe_download(session, url)
+            except requests.exceptions.RequestException as error:
+                raise ToolError(http_error_text(url, error)) from error
+            if rangeable and total >= PARALLEL_MIN_BYTES:
+                ui.info(f"{label} via {DOWNLOAD_THREADS} parallel connections")
+                if not _parallel_download(session, url, total, destination, ui, progress, label):
+                    ui.info("server ignored range requests, falling back to a single stream")
+                    _stream_download(session, url, destination, ui, progress, label, total)
+            else:
+                _stream_download(session, url, destination, ui, progress, label, total)
+            verify_digest(destination, sha, ui)
+            paths.append(destination)
+    return paths
 
 
 def pom_version(repo):
@@ -222,6 +335,26 @@ def resolve_paper(args, session, ui):
         raise ToolError(f"Paper build {chosen.get('id')} ships no sha256 checksum")
     ui.ok(f"selected build {chosen.get('id')} ({chosen_channel}): {server.get('name')}")
     return version, server["url"], sha
+
+
+def resolve_downloads(args, session, ui):
+    if args.source == "vanilla":
+        mc = args.mc or pom_version(args.repo.resolve())
+        ui.step(1, f"source: {ui.cyan('vanilla')}, target Minecraft {ui.cyan(mc)}")
+        url, sha = resolve_vanilla(args, mc, session, ui)
+        return mc, [(url, sha, f"Minecraft {mc} server jar")]
+    ui.step(1, f"source: {ui.cyan('PaperMC Fill API')}")
+    version, paper_url, paper_sha = resolve_paper(args, session, ui)
+    mc = args.mc or version
+    pom = pom_version(args.repo.resolve()) if (args.repo.resolve() / "pom.xml").is_file() else None
+    if pom and pom != version:
+        ui.warn(f"tables now describe MC {version} but the pom targets {pom}, consider --mc {pom}")
+    ui.info("the Paper jar is a patcher and carries no game data, the loot tables come from the matching vanilla jar")
+    vanilla_url, vanilla_sha = resolve_vanilla_manifest(mc, session, ui)
+    return mc, [
+        (paper_url, paper_sha, f"Paper {version} build jar (integrity check)"),
+        (vanilla_url, vanilla_sha, f"Minecraft {mc} vanilla server jar (data source)"),
+    ]
 
 
 def extract_tables(jar_path, mc, staging, ui):
@@ -328,29 +461,13 @@ def main(argv):
     session = http_session(user_agent)
 
     try:
-        downloads = []
-        if args.source == "vanilla":
-            mc = args.mc or pom_version(repo)
-            ui.step(1, f"source: {ui.cyan('vanilla')}, target Minecraft {ui.cyan(mc)}")
-            url, sha = resolve_vanilla(args, mc, session, ui)
-            downloads.append((url, sha, f"Minecraft {mc} server jar"))
-        else:
-            ui.step(1, f"source: {ui.cyan('PaperMC Fill API')}")
-            version, paper_url, paper_sha = resolve_paper(args, session, ui)
-            mc = args.mc or version
-            if (repo / "pom.xml").is_file() and pom_version(repo) != version:
-                ui.warn(f"tables now describe MC {version} but the pom targets {pom_version(repo)}, consider --mc {pom_version(repo)}")
-            ui.info("the Paper jar is a patcher and carries no game data, the loot tables come from the matching vanilla jar")
-            vanilla_url, vanilla_sha = resolve_vanilla_manifest(mc, session, ui)
-            downloads.append((paper_url, paper_sha, f"Paper {version} build jar (integrity check)"))
-            downloads.append((vanilla_url, vanilla_sha, f"Minecraft {mc} vanilla server jar (data source)"))
+        ui.banner(repo)
+        mc, downloads = resolve_downloads(args, session, ui)
 
         ui.step(2, "downloading and verifying")
         with tempfile.TemporaryDirectory(prefix="rpp-loot-") as scratch:
-            with ui.progress_bar() as progress:
-                for index, (url, sha, label) in enumerate(downloads):
-                    http_download(url, session, sha, Path(scratch) / f"jar{index}.jar", ui, progress, label)
-            vanilla_path = Path(scratch) / f"jar{len(downloads) - 1}.jar"
+            paths = download_all(session, downloads, Path(scratch), ui)
+            vanilla_path = paths[-1]
 
             ui.step(3, "extracting the loot tables")
             staging = Path(scratch) / "loot_tables"
