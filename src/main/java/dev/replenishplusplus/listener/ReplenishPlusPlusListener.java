@@ -13,13 +13,16 @@ import dev.replenishplusplus.util.DropPickupManager;
 import dev.replenishplusplus.util.LocationUtil;
 import dev.replenishplusplus.util.SeedIndex;
 import dev.replenishplusplus.util.TextUtil;
+import dev.replenishplusplus.util.VanillaCropDrops;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Directional;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -28,12 +31,15 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Level;
 
 public final class ReplenishPlusPlusListener implements Listener {
@@ -115,7 +121,7 @@ public final class ReplenishPlusPlusListener implements Listener {
 
         int originalAge = ageable.getAge();
         boolean wasMature = originalAge >= info.maximumAge();
-        Collection<ItemStack> drops = wasMature ? block.getDrops(tool, player) : Collections.emptyList();
+        Collection<ItemStack> drops = wasMature ? matureDrops(block, crop, tool, player) : Collections.emptyList();
 
         boolean seedConsumed = false;
         if (wasMature && config.requirePlayerSeed()) {
@@ -140,6 +146,34 @@ public final class ReplenishPlusPlusListener implements Listener {
             case CREATIVE, SPECTATOR, ADVENTURE -> true;
             case SURVIVAL -> false;
         };
+    }
+
+    private Collection<ItemStack> matureDrops(Block block, CropType crop, ItemStack tool, Player player) {
+        int fortune = tool.getEnchantmentLevel(Enchantment.FORTUNE);
+        int allowedEnchantments = fortune > 0 ? 1 : 0;
+        if (tool.getEnchantments().size() != allowedEnchantments) {
+            return block.getDrops(tool, player);
+        }
+        return stacksFor(crop, VanillaCropDrops.counts(crop, fortune, ThreadLocalRandom.current()));
+    }
+
+    private static List<ItemStack> stacksFor(CropType crop, int[] counts) {
+        return switch (crop) {
+            case WHEAT -> stacks(counts, Material.WHEAT, Material.WHEAT_SEEDS);
+            case CARROTS -> stacks(counts, Material.CARROT);
+            case POTATOES -> stacks(counts, Material.POTATO, Material.POISONOUS_POTATO);
+            case BEETROOTS -> stacks(counts, Material.BEETROOT, Material.BEETROOT_SEEDS);
+            case NETHER_WART -> stacks(counts, Material.NETHER_WART);
+            case COCOA -> stacks(counts, Material.COCOA_BEANS);
+        };
+    }
+
+    private static List<ItemStack> stacks(int[] counts, Material... materials) {
+        List<ItemStack> stacks = new ArrayList<>(counts.length);
+        for (int i = 0; i < counts.length; i++) {
+            if (counts[i] > 0) stacks.add(new ItemStack(materials[i], counts[i]));
+        }
+        return stacks;
     }
 
     private BlockFace findAnchorFace(CropInfo info, Block block) {
