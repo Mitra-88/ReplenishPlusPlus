@@ -46,7 +46,9 @@ public final class ReplenishPlusPlus extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        saveResource("en_us.yml", false);
+        if (!new File(getDataFolder(), "en_us.yml").exists()) {
+            saveResource("en_us.yml", false);
+        }
         ageMetaRegistry = new AgeMetaRegistry(this);
         playerToggleManager = new PlayerToggleManager(this);
         devModeManager = new DevModeManager(this);
@@ -56,21 +58,21 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         ConfigCache config = getConfigCache();
         int enabledCrops = CropType.values().length - config.disabledCrops().size();
 
-        sendConsole("Loaded successfully.");
-        sendConsole("Supported crops: <white>" + enabledCrops);
+        sendConsole("<gradient:#FFD700:#FF9D00>Loaded successfully</gradient> <dark_gray>· <white>v" + getPluginMeta().getVersion());
+        sendConsole("<gradient:#FFD700:#FF9D00>Supported crops</gradient> <dark_gray>· <white>" + enabledCrops);
         if (!config.disabledCrops().isEmpty()) {
             StringBuilder disabled = new StringBuilder();
             for (CropType crop : config.disabledCrops()) {
                 if (!disabled.isEmpty()) disabled.append(", ");
                 disabled.append(crop.name().toLowerCase(Locale.ROOT));
             }
-            sendConsole("<yellow>Disabled crops: <white>" + disabled);
+            sendConsole("<yellow>Disabled crops</yellow> <dark_gray>· <white>" + disabled);
         }
-        sendConsole("Replants per tick: <white>" + config.maxReplantsPerTick());
-        sendConsole("Queue capacity: <white>" + config.maxReplantsQueued());
+        sendConsole("<gradient:#FFD700:#FF9D00>Replants per tick</gradient> <dark_gray>· <white>" + config.maxReplantsPerTick());
+        sendConsole("<gradient:#FFD700:#FF9D00>Queue capacity</gradient> <dark_gray>· <white>" + config.maxReplantsQueued());
         int delayTicks = config.replantDelayTicks();
-        sendConsole("Delay: <white>" + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
-        sendConsole("Running version: <white>v" + getPluginMeta().getVersion());
+        sendConsole("<gradient:#FFD700:#FF9D00>Replant delay</gradient> <dark_gray>· <white>" + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
+        sendConsole("<gradient:#FFD700:#FF9D00>Running version</gradient> <dark_gray>· <white>v" + getPluginMeta().getVersion());
 
         updateChecker = new UpdateChecker(this, config.checkUpdates());
 
@@ -136,7 +138,8 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         if (oldQueue != null) {
             int flushed = oldQueue.flush();
             if (flushed > 0) {
-                sendConsole("<yellow>Flushed " + flushed + " pending replant(s) before queue restart.");
+                sendConsole("<gradient:#FFD700:#FF9D00>Queue flush</gradient> <dark_gray>· <white>" + flushed
+                        + "<gray> pending replant(s) replanted before the restart");
             }
         }
     }

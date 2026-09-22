@@ -157,14 +157,14 @@ public final class UpdateChecker {
     private void logResult() {
         int comparison = current == null || latest == null ? 0 : compare(current, latest);
         if (comparison < 0) {
-            console("<gray>Replenish++ <gold>v" + latestVersion
-                    + " <yellow>is out! <gray>(you're on <white>v" + currentVersion + "<gray>)");
+            console("<gradient:#FFD700:#FF9D00>Update available</gradient> <dark_gray>· <gray>Replenish++ <gold>v"
+                    + latestVersion + " <yellow>is out <dark_gray>· <gray>you're on <white>v" + currentVersion);
             console("<gray>Download: <aqua>" + RELEASES_URL);
         } else if (comparison > 0) {
-            console("<gray>Update Status: <light_purple>Running unreleased/dev build "
+            console("<gradient:#FFD700:#FF9D00>Update Status</gradient> <dark_gray>· <light_purple>Running unreleased/dev build "
                     + "<dark_gray>(<white>" + currentVersion + "<dark_gray>)");
         } else {
-            console("<gray>Update Status: <green>Up to date "
+            console("<gradient:#FFD700:#FF9D00>Update Status</gradient> <dark_gray>· <green>Up to date "
                     + "<dark_gray>(<white>" + currentVersion + "<dark_gray>)");
         }
     }

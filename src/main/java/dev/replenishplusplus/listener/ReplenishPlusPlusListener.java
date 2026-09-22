@@ -152,12 +152,12 @@ public final class ReplenishPlusPlusListener implements Listener {
     }
 
     private Collection<ItemStack> matureDrops(Block block, CropType crop, ItemStack tool, Player player) {
-        int fortune = tool.getEnchantmentLevel(Enchantment.FORTUNE);
-        int allowedEnchantments = fortune > 0 ? 1 : 0;
-        if (tool.getEnchantments().size() != allowedEnchantments) {
+        int fortune = Math.max(0, tool.getEnchantmentLevel(Enchantment.FORTUNE));
+        int[] counts = VanillaCropDrops.counts(crop, fortune, ThreadLocalRandom.current());
+        if (counts == null) {
             return block.getDrops(tool, player);
         }
-        return stacksFor(crop, VanillaCropDrops.counts(crop, fortune, ThreadLocalRandom.current()));
+        return stacksFor(crop, counts);
     }
 
     private static List<ItemStack> stacksFor(CropType crop, int[] counts) {
