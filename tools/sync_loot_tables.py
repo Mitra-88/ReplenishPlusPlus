@@ -2,24 +2,21 @@
 """Sync loot_tables/ for ReplenishPlusPlus from the vanilla Minecraft server jar."""
 
 import argparse
-import contextlib
-import ctypes
 import hashlib
-import itertools
 import json
 import os
 import re
+import requests
 import shutil
 import subprocess
 import sys
 import tempfile
-import threading
-import time
 import traceback
-import urllib.error
-import urllib.request
 import zipfile
 from pathlib import Path
+from rich.console import Console
+from rich.markup import escape
+from rich.progress import BarColumn, DownloadColumn, Progress, TaskProgressColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn, TransferSpeedColumn
 
 MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 FILL_BASE = "https://fill.papermc.io/v3"
@@ -37,144 +34,77 @@ class ToolError(Exception):
 
 class Ui:
     def __init__(self):
-        self.tty = sys.stdout.isatty()
-        self.ansi = self.tty and not os.environ.get("NO_COLOR") and self._enable_windows_vt()
-        encoding = (sys.stdout.encoding or "").lower()
-        self.unicode = "utf" in encoding
-
-    @staticmethod
-    def _enable_windows_vt():
-        if os.name != "nt":
-            return True
-        try:
-            kernel32 = ctypes.windll.kernel32
-            handle = kernel32.GetStdHandle(-11)
-            mode = ctypes.c_uint32()
-            if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-                return False
-            return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
-        except Exception:
-            return False
-
-    def _paint(self, text):
-        sys.stdout.write(text)
-        sys.stdout.flush()
-
-    def colored(self, code, text):
-        return f"\x1b[{code}m{text}\x1b[0m" if self.ansi else text
-
-    def dim(self, text):
-        return self.colored("2", text)
+        self.console = Console()
 
     def green(self, text):
-        return self.colored("32", text)
+        return f"[green]{text}[/green]"
 
     def yellow(self, text):
-        return self.colored("33", text)
+        return f"[yellow]{text}[/yellow]"
 
     def red(self, text):
-        return self.colored("31", text)
+        return f"[red]{text}[/red]"
 
     def cyan(self, text):
-        return self.colored("36", text)
+        return f"[cyan]{text}[/cyan]"
 
     def bold(self, text):
-        return self.colored("1", text)
+        return f"[bold]{text}[/bold]"
 
     def line(self, text=""):
-        sys.stdout.write(text + "\n")
-        sys.stdout.flush()
+        self.console.print(text)
 
     def step(self, number, text):
-        self.line(f"{self.cyan(f'[{number}/{STEPS}]')} {text}")
+        self.console.print(f"[cyan]{escape(f'[{number}/{STEPS}]')}[/cyan] {text}")
 
     def ok(self, text):
-        mark = self.green("✓" if self.unicode else "+")
-        self.line(f"  {mark} {text}")
+        self.console.print(f"  [green]✓[/green] {escape(text)}")
 
     def warn(self, text):
-        mark = self.yellow("⚠" if self.unicode else "!")
-        self.line(f"  {mark} {self.yellow(text)}")
+        self.console.print(f"  [yellow]⚠ {escape(text)}[/yellow]")
 
     def info(self, text):
-        self.line(f"  {self.dim(text)}")
+        self.console.print(f"  [dim]{escape(text)}[/dim]")
 
-    @contextlib.contextmanager
     def spin(self, text):
-        if not self.ansi:
-            self.line(f"  {self.dim(text + ' ...')}")
-            yield
-            return
-        stop = threading.Event()
-        frames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if self.unicode else "|/-\\"
+        return self.console.status(text)
 
-        def loop():
-            for frame in itertools.cycle(frames):
-                if stop.is_set():
-                    return
-                self._paint(f"\r\x1b[2K  {self.dim(frame + ' ' + text)}")
-                stop.wait(0.08)
-
-        spinner = threading.Thread(target=loop, daemon=True)
-        spinner.start()
-        try:
-            yield
-        finally:
-            stop.set()
-            spinner.join()
-            self._paint("\r\x1b[2K")
-
-    def progress(self, label, done, total, started):
-        if not self.ansi:
-            return
-        elapsed = max(time.monotonic() - started, 1e-6)
-        rate = done / elapsed
-        if total > 0:
-            width = 24
-            fraction = min(done / total, 1.0)
-            filled = int(width * fraction)
-            if self.unicode:
-                bar = "█" * filled + "░" * (width - filled)
-            else:
-                bar = "#" * filled + "-" * (width - filled)
-            line = f"\r\x1b[2K  {label} {self.cyan(bar)} {fraction * 100:5.1f}%  {human(done)} / {human(total)}  {human(rate)}/s"
-        else:
-            line = f"\r\x1b[2K  {label} {human(done)}  {human(rate)}/s"
-        self._paint(line)
-
-    def progress_done(self, done, started):
-        if self.ansi:
-            self._paint("\r\x1b[2K")
-        rate = done / max(time.monotonic() - started, 1e-6)
-        self.ok(f"downloaded {human(done)}, averaged {human(rate)}/s")
+    def progress_bar(self):
+        return Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            DownloadColumn(binary_units=True),
+            TransferSpeedColumn(),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            console=self.console,
+            transient=True,
+        )
 
 
-def human(count):
-    value = float(count)
-    for unit in ("B", "KiB", "MiB", "GiB"):
-        if value < 1024 or unit == "GiB":
-            return f"{value:,.1f} {unit}" if unit != "B" else f"{int(value)} B"
-        value /= 1024
-    return f"{value:,.1f} GiB"
+def http_session(user_agent):
+    session = requests.Session()
+    session.headers.update({"User-Agent": user_agent})
+    return session
 
 
-def http_bytes(url, user_agent, timeout=30):
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+def http_error_text(url, error):
+    response = getattr(error, "response", None)
+    if response is not None:
+        return f"HTTP {response.status_code} from {url}"
+    return f"cannot reach {url}: {error}"
+
+
+def http_json(url, session):
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            return response.read()
-    except urllib.error.HTTPError as error:
-        raise ToolError(f"HTTP {error.code} from {url}") from error
-    except urllib.error.URLError as error:
-        raise ToolError(f"cannot reach {url}: {error.reason}") from error
-
-
-def http_json(url, user_agent):
-    raw = http_bytes(url, user_agent)
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError as error:
+        response = session.get(url, timeout=(30, 60))
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.JSONDecodeError as error:
         raise ToolError(f"{url} returned malformed JSON") from error
+    except requests.exceptions.RequestException as error:
+        raise ToolError(http_error_text(url, error)) from error
 
 
 def digest_algorithm(expected):
@@ -185,24 +115,22 @@ def digest_algorithm(expected):
     raise ToolError(f"expected digest has {len(expected)} hex chars, want 40 (sha1) or 64 (sha256)")
 
 
-def http_download(url, user_agent, expected_sha, destination, ui):
+def http_download(url, session, expected_sha, destination, ui, progress, label):
     algorithm = digest_algorithm(expected_sha)
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    started = time.monotonic()
-    done = 0
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with session.get(url, stream=True, timeout=(30, 60)) as response:
+            response.raise_for_status()
             total = int(response.headers.get("Content-Length") or 0)
+            task = progress.add_task(label, total=total or None)
+            done = 0
             with open(destination, "wb") as target:
-                while chunk := response.read(CHUNK):
+                for chunk in response.iter_content(chunk_size=CHUNK):
                     target.write(chunk)
                     done += len(chunk)
-                    ui.progress("download", done, total, started)
-    except urllib.error.HTTPError as error:
-        raise ToolError(f"HTTP {error.code} while downloading {url}") from error
-    except urllib.error.URLError as error:
-        raise ToolError(f"download failed: {error.reason}") from error
-    ui.progress_done(done, started)
+                    progress.update(task, completed=done)
+            progress.remove_task(task)
+    except requests.exceptions.RequestException as error:
+        raise ToolError(f"download failed: {http_error_text(url, error)}") from error
     with open(destination, "rb") as source:
         actual = hashlib.file_digest(source, algorithm).hexdigest()
     if actual != expected_sha.lower():
@@ -222,15 +150,15 @@ def pom_version(repo):
     return match.group(1).strip()
 
 
-def resolve_vanilla_manifest(mc, user_agent, ui):
+def resolve_vanilla_manifest(mc, session, ui):
     with ui.spin("querying Mojang version manifest"):
-        manifest = http_json(MANIFEST_URL, user_agent)
+        manifest = http_json(MANIFEST_URL, session)
     entry = next((v for v in manifest.get("versions", []) if v.get("id") == mc), None)
     if entry is None:
         latest = ", ".join(v["id"] for v in manifest.get("versions", [])[:5])
         raise ToolError(f"Minecraft {mc} is not in the version manifest, newest releases are: {latest}")
     with ui.spin(f"resolving the server jar for Minecraft {mc}"):
-        details = http_json(entry["url"], user_agent)
+        details = http_json(entry["url"], session)
     try:
         server = details["downloads"]["server"]
         return server["url"], server["sha1"]
@@ -238,7 +166,7 @@ def resolve_vanilla_manifest(mc, user_agent, ui):
         raise ToolError(f"the manifest entry for {mc} has no server jar download") from error
 
 
-def resolve_vanilla(args, mc, user_agent, ui):
+def resolve_vanilla(args, mc, session, ui):
     if args.url:
         sha = args.sha or next(
             (segment for segment in re.split(r"[/?]", args.url)
@@ -250,12 +178,12 @@ def resolve_vanilla(args, mc, user_agent, ui):
         digest_algorithm(sha)
         ui.info(f"direct download: {args.url}")
         return args.url, sha.lower()
-    return resolve_vanilla_manifest(mc, user_agent, ui)
+    return resolve_vanilla_manifest(mc, session, ui)
 
 
-def resolve_paper(args, user_agent, ui):
+def resolve_paper(args, session, ui):
     with ui.spin("querying the PaperMC Fill API"):
-        project = http_json(f"{FILL_BASE}/projects/paper", user_agent)
+        project = http_json(f"{FILL_BASE}/projects/paper", session)
     raw_versions = project.get("versions") or {}
     if isinstance(raw_versions, dict):
         slugs = [slug for family in raw_versions.values() for slug in family]
@@ -271,7 +199,7 @@ def resolve_paper(args, user_agent, ui):
             raise ToolError("the PaperMC Fill API returned no versions")
         version = slugs[0]
     with ui.spin(f"listing Paper builds for {version}"):
-        payload = http_json(f"{FILL_BASE}/projects/paper/versions/{version}/builds", user_agent)
+        payload = http_json(f"{FILL_BASE}/projects/paper/versions/{version}/builds", session)
     builds = payload if isinstance(payload, list) else (payload.get("builds") or [])
     ui.ok(f"{len(builds)} Paper builds for {version}")
     if not builds:
@@ -329,10 +257,10 @@ def extract_tables(jar_path, mc, staging, ui):
                 if not data:
                     raise ToolError(f"{key} in the vanilla jar is empty")
                 (staging / f"{crop}.json").write_bytes(data)
-                ui.ok(f"{crop}.json ({human(len(data))})")
+                ui.ok(f"{crop}.json ({len(data)} bytes)")
             version_data = vanilla.read(inner["version.json"])
             (staging / "version.json").write_bytes(version_data)
-            ui.ok(f"version.json ({human(len(version_data))})")
+            ui.ok(f"version.json ({len(version_data)} bytes)")
     wheat = (staging / "wheat.json").read_text(encoding="utf-8")
     if "apply_bonus" not in wheat:
         raise ToolError("wheat.json lost its apply_bonus modifier, the loot table format changed upstream, a human must review the transcription")
@@ -367,7 +295,7 @@ def report(repo, ui):
 def parse_args(argv):
     kwargs = dict(
         prog="sync_loot_tables.py",
-        description="Re-extract loot_tables/ for ReplenishPlusPlus from Mojang's vanilla server jar, or from PaperMC via the Fill API. Zero dependencies, Python 3.11+.",
+        description="Re-extract loot_tables/ for ReplenishPlusPlus from Mojang's vanilla server jar, or from PaperMC via the Fill API. Requires rich and requests (tools/requirements.txt).",
         epilog="examples:\n"
                "  python tools/sync_loot_tables.py\n"
                "  python tools/sync_loot_tables.py --mc 26.4\n"
@@ -397,30 +325,31 @@ def main(argv):
     args = parse_args(argv)
     repo = args.repo.resolve()
     user_agent = args.user_agent.strip() or DEFAULT_UA
+    session = http_session(user_agent)
 
     try:
         downloads = []
         if args.source == "vanilla":
             mc = args.mc or pom_version(repo)
             ui.step(1, f"source: {ui.cyan('vanilla')}, target Minecraft {ui.cyan(mc)}")
-            url, sha = resolve_vanilla(args, mc, user_agent, ui)
+            url, sha = resolve_vanilla(args, mc, session, ui)
             downloads.append((url, sha, f"Minecraft {mc} server jar"))
         else:
             ui.step(1, f"source: {ui.cyan('PaperMC Fill API')}")
-            version, paper_url, paper_sha = resolve_paper(args, user_agent, ui)
+            version, paper_url, paper_sha = resolve_paper(args, session, ui)
             mc = args.mc or version
             if (repo / "pom.xml").is_file() and pom_version(repo) != version:
                 ui.warn(f"tables now describe MC {version} but the pom targets {pom_version(repo)}, consider --mc {pom_version(repo)}")
             ui.info("the Paper jar is a patcher and carries no game data, the loot tables come from the matching vanilla jar")
-            vanilla_url, vanilla_sha = resolve_vanilla_manifest(mc, user_agent, ui)
+            vanilla_url, vanilla_sha = resolve_vanilla_manifest(mc, session, ui)
             downloads.append((paper_url, paper_sha, f"Paper {version} build jar (integrity check)"))
             downloads.append((vanilla_url, vanilla_sha, f"Minecraft {mc} vanilla server jar (data source)"))
 
         ui.step(2, "downloading and verifying")
         with tempfile.TemporaryDirectory(prefix="rpp-loot-") as scratch:
-            for index, (url, sha, label) in enumerate(downloads):
-                ui.info(label)
-                http_download(url, user_agent, sha, Path(scratch) / f"jar{index}.jar", ui)
+            with ui.progress_bar() as progress:
+                for index, (url, sha, label) in enumerate(downloads):
+                    http_download(url, session, sha, Path(scratch) / f"jar{index}.jar", ui, progress, label)
             vanilla_path = Path(scratch) / f"jar{len(downloads) - 1}.jar"
 
             ui.step(3, "extracting the loot tables")
@@ -446,7 +375,7 @@ def main(argv):
         return 0
     except ToolError as error:
         ui.line()
-        ui.line(ui.red(f"error: {error}"))
+        ui.line(ui.red(escape(f"error: {error}")))
         return 1
     except KeyboardInterrupt:
         ui.line()
@@ -457,7 +386,7 @@ def main(argv):
         if args.debug:
             traceback.print_exc()
         else:
-            ui.line(ui.red(f"error: {type(error).__name__}: {error} (run with --debug for a traceback)"))
+            ui.line(ui.red(escape(f"error: {type(error).__name__}: {error} (run with --debug for a traceback)")))
         return 1
 
 
