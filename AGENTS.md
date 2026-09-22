@@ -59,6 +59,41 @@ A **server-side Paper plugin** (plugin name `ReplenishPlusPlus`, package `dev.re
 
 **Goal:** the code should feel pragmatically and deliberately written by an experienced plugin developer, not like generic AI output.
 
+## Ponytail, lazy senior dev mode
+
+Adapted from [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail/blob/main/AGENTS.md), commit `b6c04480c03e8db2f035751d7c46289779ec3362`.
+
+You are a lazy senior developer. Lazy means efficient, not careless. The best code is the code never written.
+
+Before writing any code, stop at the first rung that holds:
+
+1. Does this need to be built at all? (YAGNI)
+2. Does it already exist in this codebase? Reuse the helper, util, or pattern that's already here, don't re-write it.
+3. Does the standard library already do this? Use it.
+4. Does a native platform feature cover it? Use it.
+5. Does an already-installed dependency solve it? Use it.
+6. Can this be one line? Make it one line.
+7. Only then: write the minimum code that works.
+
+The ladder runs after you understand the problem, not instead of it: read the task and the code it touches, trace the real flow end to end, then climb.
+
+Bug fix = root cause, not symptom: a report names a symptom. Grep every caller of the function you touch and fix the shared function once, one guard there is a smaller diff than one per caller, and patching only the path the ticket names leaves a sibling caller still broken.
+
+Rules:
+
+- No abstractions that weren't explicitly requested.
+- No new dependency if it can be avoided.
+- No boilerplate nobody asked for.
+- Deletion over addition. Boring over clever. Fewest files possible.
+- Shortest working diff wins, but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
+- Question complex requests: "Do you actually need X, or does Y cover it?"
+- Pick the edge-case-correct option when two stdlib approaches are the same size, lazy means less code, not the flimsier algorithm.
+- Mark deliberate simplifications that cut a real corner with a known ceiling (global lock, O(n²) scan, naive heuristic) with a `ponytail:` note naming the ceiling and upgrade path; in this repo that note lives here in AGENTS.md (next to the relevant section or in Gotchas & quirks), never as an inline Java comment.
+
+Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
+
+(Yes, this also applies to agents working on this repo. Especially to them.)
+
 ## Build & run
 
 ```bash
@@ -69,7 +104,7 @@ mvn package   # compile + shade; this is what CI runs, on Zulu 25
 - The codebase is warning-free under `-Xlint:all`, keep it that way. Check with `mvn package -Dmaven.compiler.showDeprecation=true -Dmaven.compiler.showWarnings=true "-Dmaven.compiler.compilerArgument=-Xlint:all"` (command-line properties; nothing to change in the pom).
 - Jar output: `target/ReplenishPlusPlus-<version>+build.<commit count>-<7-char abbrev>-mc<mc.version>-<server.software>.jar` (shade plugin, `minimizeJar` on; the shade step's `original-*.jar` is auto-deleted after package by a `maven-clean-plugin` execution). The build number is `git.total.commit.count` and the SHA is `git.commit.id.abbrev`, both resolved by the `git-commit-id-maven-plugin` (git; the build fails outside a git checkout), the count is the total commits on HEAD, so it tracks itself as history grows. `mc.version` and `server.software` are pom properties kept in sync with the MC line (and conceptually with any `-mcX.Y` token in the version) and the target server software.
 - The version lives only in `pom.xml` `<version>`; `paper-plugin.yml` picks it up via Maven resource filtering (`${project.version}`), all of `src/main/resources` is filtered.
-- CI (`.github/workflows/build.yml`) builds on push to **`7.x.x`** only (plus manual dispatch) and uploads the jar as `ReplenishPlusPlus-<pom version>+build.<run number>-<7-char sha>` (e.g. `ReplenishPlusPlus-7.0.0+build.42-abc1234`), the version is **read from `pom.xml` at build time**, so a version bump only edits `pom.xml`. Checkout uses `fetch-depth: 0` because a shallow clone would make the commit-count build number in the jar name wrong. Current dev branch: `7.x.x`; `6.1.x` is the old main line.
+- CI (`.github/workflows/build.yml`) builds on push to **`7.x.x`** only (plus manual dispatch) and uploads the jar as `ReplenishPlusPlus-<pom version>+build.<run number>-<7-char sha>` (e.g. `ReplenishPlusPlus-7.0.0+build.42-abc1234`), the version is **read from `pom.xml` at build time**, so a version bump only edits `pom.xml`. The version step runs `mvn help:evaluate` with `-q`; without quiet mode Maven's `[INFO]` log lines land in `$GITHUB_OUTPUT` alongside the value and GitHub rejects the file (`Invalid format '[INFO] '`), so don't drop the flag. Checkout uses `fetch-depth: 0` because a shallow clone would make the commit-count build number in the jar name wrong. Current dev branch: `7.x.x`; `6.1.x` is the old main line.
 - Targets Paper/Purpur on MC 26.3. **No Folia support**, no `folia-supported: true` in `paper-plugin.yml`, no region-scheduler code.
 
 ## How a harvest works
