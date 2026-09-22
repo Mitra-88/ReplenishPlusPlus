@@ -95,6 +95,7 @@ public final class ReplenishPlusPlusListener implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         wrongToolCooldown.remove(event.getPlayer().getUniqueId());
         needSeedCooldown.remove(event.getPlayer().getUniqueId());
+        playerToggleManager.evict(event.getPlayer().getUniqueId());
     }
 
     private void prepareHarvest(BlockBreakEvent event) {
