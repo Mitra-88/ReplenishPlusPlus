@@ -48,8 +48,8 @@ class _NotRangeable(Exception):
 
 
 class Ui:
-    def __init__(self):
-        self.console = Console()
+    def __init__(self, console=None):
+        self.console = console or Console()
 
     def green(self, text):
         return f"[green]{text}[/green]"
@@ -281,11 +281,7 @@ def resolve_vanilla_manifest(mc, session, ui):
 
 def resolve_vanilla(args, mc, session, ui):
     if args.url:
-        sha = args.sha or next(
-            (segment for segment in re.split(r"[/?]", args.url)
-             if re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", segment)),
-            None,
-        )
+        sha = args.sha or _sha_from_url(args.url)
         if not sha:
             raise ToolError("no sha1/sha256 hash found in the URL path, pass the expected digest with --sha")
         digest_algorithm(sha)
@@ -294,14 +290,39 @@ def resolve_vanilla(args, mc, session, ui):
     return resolve_vanilla_manifest(mc, session, ui)
 
 
+def _sha_from_url(url):
+    return next(
+        (segment for segment in re.split(r"[/?]", url)
+         if re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", segment)),
+        None,
+    )
+
+
+def _version_slugs(project):
+    raw = project.get("versions") or {}
+    if isinstance(raw, dict):
+        return [slug for family in raw.values() for slug in family]
+    return [slug for family in raw for slug in (family if isinstance(family, list) else [family])]
+
+
+def _select_build(builds):
+    by_channel = {}
+    for build in builds:
+        by_channel.setdefault(str(build.get("channel") or "").upper(), []).append(build)
+    channel = next((c for c in CHANNELS if c in by_channel), None)
+    if channel is None:
+        if not by_channel:
+            return None, None
+        channel = sorted(by_channel)[0]
+    pool = by_channel[channel]
+    newest = max(pool, key=lambda b: (b.get("build") or b.get("id") or 0, str(b.get("time") or "")))
+    return channel, newest
+
+
 def resolve_paper(args, session, ui):
     with ui.spin("querying the PaperMC Fill API"):
         project = http_json(f"{FILL_BASE}/projects/paper", session)
-    raw_versions = project.get("versions") or {}
-    if isinstance(raw_versions, dict):
-        slugs = [slug for family in raw_versions.values() for slug in family]
-    else:
-        slugs = [slug for family in raw_versions for slug in (family if isinstance(family, list) else [family])]
+    slugs = _version_slugs(project)
     if args.mc:
         if args.mc not in slugs:
             shown = ", ".join(str(v) for v in slugs[:6])
@@ -317,14 +338,7 @@ def resolve_paper(args, session, ui):
     ui.ok(f"{len(builds)} Paper builds for {version}")
     if not builds:
         raise ToolError(f"PaperMC has zero builds for {version} in any channel")
-    by_channel = {}
-    for build in builds:
-        by_channel.setdefault(str(build.get("channel") or "").upper(), []).append(build)
-    chosen_channel = next((c for c in CHANNELS if c in by_channel), None)
-    if chosen_channel is None:
-        chosen_channel = sorted(by_channel)[0]
-    pool = by_channel[chosen_channel]
-    chosen = max(pool, key=lambda b: (b.get("build") or b.get("id") or 0, str(b.get("time") or "")))
+    chosen_channel, chosen = _select_build(builds)
     if chosen_channel != "STABLE":
         ui.warn(f"newest {version} build is channel {chosen_channel}, not production recommended")
     server = (chosen.get("downloads") or {}).get("server:default")
