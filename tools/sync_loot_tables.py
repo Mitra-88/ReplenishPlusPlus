@@ -16,6 +16,7 @@ import time
 import traceback
 import zipfile
 from pathlib import Path
+from typing import BinaryIO
 
 import requests
 from rich.console import Console
@@ -38,7 +39,9 @@ FILL_BASE = "https://fill.papermc.io/v3"
 CROPS = ("wheat", "carrots", "potatoes", "beetroots", "nether_wart", "cocoa")
 TABLE_DIR = "data/minecraft/loot_table/blocks"
 CHANNELS = ("STABLE", "DEFAULT", "EXPERIMENTAL")
-DEFAULT_UA = "ReplenishPlusPlus-loot-sync/1.0 (+https://github.com/Mitra-88/ReplenishPlusPlus)"
+DEFAULT_UA = (
+    "ReplenishPlusPlus-loot-sync/1.0 (+https://github.com/Mitra-88/ReplenishPlusPlus)"
+)
 CHUNK = 1 << 20
 DOWNLOAD_THREADS = 8
 RETRIES = 3
@@ -58,52 +61,68 @@ class _NotRangeable(Exception):
 
 
 class Ui:
-    def __init__(self, console=None):
+    def __init__(self, console: Console | None = None) -> None:
         self.console = console or Console()
 
-    def green(self, text):
+    @staticmethod
+    def green(text):
         return f"[green]{text}[/green]"
 
-    def yellow(self, text):
+    @staticmethod
+    def yellow(text):
         return f"[yellow]{text}[/yellow]"
 
-    def red(self, text):
+    @staticmethod
+    def red(text):
         return f"[red]{text}[/red]"
 
-    def cyan(self, text):
+    @staticmethod
+    def cyan(text):
         return f"[cyan]{text}[/cyan]"
 
-    def bold(self, text):
+    @staticmethod
+    def bold(text):
         return f"[bold]{text}[/bold]"
 
-    def line(self, text=""):
+    def line(self, text: str = "") -> None:
         self.console.print(text)
 
-    def banner(self, repo):
+    def banner(self, repo: Path) -> None:
         system = escape(platform.system() or "unknown")
         release = escape(platform.release() or "")
         machine = escape(platform.machine() or "unknown")
         body = f"[bold]python {escape(platform.python_version())}[/bold] on {system} {release} {machine}\n[dim]{escape(str(repo))}[/dim]"
-        self.console.print(Panel(body, title=":zap: ReplenishPlusPlus loot table sync", border_style="gold3", title_align="left"))
+        self.console.print(
+            Panel(
+                body,
+                title=":zap: ReplenishPlusPlus loot table sync",
+                border_style="gold3",
+                title_align="left",
+            )
+        )
 
-    def step(self, number, text):
-        self.console.print(f"[cyan]{escape(f'[{number}/{STEPS}]')}[/cyan] [bold]{text}[/bold]")
+    def step(self, number: int, text: str) -> None:
+        self.console.print(
+            f"[cyan]{escape(f'[{number}/{STEPS}]')}[/cyan] [bold]{text}[/bold]"
+        )
 
-    def ok(self, text):
+    def ok(self, text: str) -> None:
         self.console.print(f"  [green]✓[/green] {escape(text)}")
 
-    def warn(self, text):
+    def warn(self, text: str) -> None:
         self.console.print(f"  [yellow]⚠ {escape(text)}[/yellow]")
 
-    def info(self, text):
+    def info(self, text: str) -> None:
         self.console.print(f"  [dim]{escape(text)}[/dim]")
 
-    def spin(self, text):
+    def spin(self, text: str):
         return self.console.status(text, spinner="aesthetic")
 
     def progress_bar(self):
         return Progress(
-            SpinnerColumn(spinner_name="dots", style="bold cyan", finished_text="[green]✓[/green]"),
+            SpinnerColumn(
+                spinner_name="dots", style="bold cyan", finished_text="[green]✓[/green]"
+            ),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(bar_width=30, complete_style="cyan", finished_style="green"),
             TaskProgressColumn(),
@@ -116,7 +135,7 @@ class Ui:
         )
 
 
-def http_session(user_agent):
+def http_session(user_agent: str) -> requests.Session:
     session = requests.Session()
     session.headers.update({"User-Agent": user_agent})
     adapter = requests.adapters.HTTPAdapter(pool_connections=16, pool_maxsize=16)
@@ -125,14 +144,14 @@ def http_session(user_agent):
     return session
 
 
-def http_error_text(url, error):
+def http_error_text(url: str, error: Exception) -> str:
     response = getattr(error, "response", None)
     if response is not None:
         return f"HTTP {response.status_code} from {url}"
     return f"cannot reach {url}: {error}"
 
 
-def http_json(url, session):
+def http_json(url: str, session: requests.Session) -> dict:
     try:
         response = session.get(url, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
         response.raise_for_status()
@@ -143,15 +162,17 @@ def http_json(url, session):
         raise ToolError(http_error_text(url, error)) from error
 
 
-def digest_algorithm(expected):
+def digest_algorithm(expected: str) -> str:
     if len(expected) == 40:
         return "sha1"
     if len(expected) == 64:
         return "sha256"
-    raise ToolError(f"expected digest has {len(expected)} hex chars, want 40 (sha1) or 64 (sha256)")
+    raise ToolError(
+        f"expected digest has {len(expected)} hex chars, want 40 (sha1) or 64 (sha256)"
+    )
 
 
-def verify_digest(path, expected_sha, ui):
+def verify_digest(path: Path, expected_sha: str, ui: Ui) -> None:
     algorithm = digest_algorithm(expected_sha)
     with open(path, "rb") as source:
         actual = hashlib.file_digest(source, algorithm).hexdigest()
@@ -162,19 +183,38 @@ def verify_digest(path, expected_sha, ui):
     ui.ok(f"{algorithm} verified: {actual}")
 
 
-def _probe_download(session, url):
-    with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
+def _probe_download(session: requests.Session, url: str) -> tuple[int, bool]:
+    with session.get(
+        url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)
+    ) as response:
         response.raise_for_status()
         total = int(response.headers.get("Content-Length") or 0)
-        rangeable = response.headers.get("Accept-Ranges", "") == "bytes" and not response.headers.get("Content-Encoding")
+        rangeable = response.headers.get(
+            "Accept-Ranges", ""
+        ) == "bytes" and not response.headers.get("Content-Encoding")
     return total, rangeable
 
 
-def _fetch_part(session, url, start, end, file, lock, progress, task, part_index):
+def _fetch_part(
+    session: requests.Session,
+    url: str,
+    start: int,
+    end: int,
+    file: BinaryIO,
+    lock: threading.Lock,
+    progress: Progress,
+    task: int,
+    part_index: int,
+) -> None:
     headers = {"Range": f"bytes={start}-{end}", "Accept-Encoding": "identity"}
     for attempt in range(RETRIES):
         try:
-            with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), headers=headers) as response:
+            with session.get(
+                url,
+                stream=True,
+                timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+                headers=headers,
+            ) as response:
                 if response.status_code != 206:
                     raise _NotRangeable()
                 response.raise_for_status()
@@ -186,17 +226,28 @@ def _fetch_part(session, url, start, end, file, lock, progress, task, part_index
                     position += len(chunk)
                     progress.update(task, advance=len(chunk))
                 if position != end + 1:
-                    raise OSError(f"short read: got {position - start} of {end + 1 - start} bytes")
+                    raise OSError(
+                        f"short read: got {position - start} of {end + 1 - start} bytes"
+                    )
                 return
         except _NotRangeable:
             raise
         except (OSError, requests.exceptions.RequestException) as error:
             if attempt == RETRIES - 1:
-                raise ToolError(f"part {part_index} failed after {RETRIES} attempts: {error}") from error
-            time.sleep(BACKOFF_SECONDS * 2 ** attempt)
+                raise ToolError(
+                    f"part {part_index} failed after {RETRIES} attempts: {error}"
+                ) from error
+            time.sleep(BACKOFF_SECONDS * 2**attempt)
 
 
-def _parallel_download(session, url, total, destination, ui, progress, label):
+def _parallel_download(
+    session: requests.Session,
+    url: str,
+    total: int,
+    destination: Path,
+    progress: Progress,
+    label: str,
+) -> bool:
     part_size = -(-total // DOWNLOAD_THREADS)
     task = progress.add_task(label, total=total)
     lock = threading.Lock()
@@ -204,10 +255,22 @@ def _parallel_download(session, url, total, destination, ui, progress, label):
     failure = None
     with open(destination, "wb") as file:
         file.truncate(total)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=DOWNLOAD_THREADS, thread_name_prefix="dl") as pool:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=DOWNLOAD_THREADS, thread_name_prefix="dl"
+        ) as pool:
             futures = [
-                pool.submit(_fetch_part, session, url, part * part_size, min(part * part_size + part_size, total) - 1,
-                            file, lock, progress, task, part)
+                pool.submit(
+                    _fetch_part,
+                    session,
+                    url,
+                    part * part_size,
+                    min(part * part_size + part_size, total) - 1,
+                    file,
+                    lock,
+                    progress,
+                    task,
+                    part,
+                )
                 for part in range(DOWNLOAD_THREADS)
             ]
             for future in futures:
@@ -229,12 +292,24 @@ def _parallel_download(session, url, total, destination, ui, progress, label):
     return True
 
 
-def _stream_download(session, url, destination, ui, progress, label, total):
+def _stream_download(
+    session: requests.Session,
+    url: str,
+    destination: Path,
+    progress: Progress,
+    label: str,
+    total: int,
+) -> None:
     last = None
     for attempt in range(RETRIES):
         task = None
         try:
-            with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), headers={"Accept-Encoding": "identity"}) as response:
+            with session.get(
+                url,
+                stream=True,
+                timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+                headers={"Accept-Encoding": "identity"},
+            ) as response:
                 response.raise_for_status()
                 task = progress.add_task(label, total=total or None)
                 done = 0
@@ -247,14 +322,21 @@ def _stream_download(session, url, destination, ui, progress, label, total):
         except requests.exceptions.RequestException as error:
             last = error
             if attempt < RETRIES - 1:
-                time.sleep(BACKOFF_SECONDS * 2 ** attempt)
+                time.sleep(BACKOFF_SECONDS * 2**attempt)
         finally:
             if task is not None:
                 progress.remove_task(task)
-    raise ToolError(f"download failed after {RETRIES} attempts: {http_error_text(url, last)}")
+    raise ToolError(
+        f"download failed after {RETRIES} attempts: {http_error_text(url, last)}"
+    )
 
 
-def download_all(session, downloads, scratch, ui):
+def download_all(
+    session: requests.Session,
+    downloads: list[tuple[str, str, str]],
+    scratch: Path,
+    ui: Ui,
+) -> list[Path]:
     paths = []
     with ui.progress_bar() as progress:
         for index, (url, sha, label) in enumerate(downloads):
@@ -265,71 +347,98 @@ def download_all(session, downloads, scratch, ui):
                 raise ToolError(http_error_text(url, error)) from error
             if rangeable and total >= PARALLEL_MIN_BYTES:
                 ui.info(f"{label} via {DOWNLOAD_THREADS} parallel connections")
-                if not _parallel_download(session, url, total, destination, ui, progress, label):
-                    ui.info("server ignored range requests, falling back to a single stream")
-                    _stream_download(session, url, destination, ui, progress, label, total)
+                if not _parallel_download(session, url, total, destination, progress, label):
+                    ui.info(
+                        "server ignored range requests, falling back to a single stream"
+                    )
+                    _stream_download(session, url, destination, progress, label, total)
             else:
-                _stream_download(session, url, destination, ui, progress, label, total)
+                _stream_download(session, url, destination, progress, label, total)
             verify_digest(destination, sha, ui)
             paths.append(destination)
     return paths
 
 
-def pom_version(repo):
+def pom_version(repo: Path) -> str:
     pom = repo / "pom.xml"
     if not pom.is_file():
         raise ToolError(f"{pom} not found, pass --mc or --repo")
-    match = re.search(r"<mc\.version>([^<]+)</mc\.version>", pom.read_text(encoding="utf-8"))
+    match = re.search(
+        r"<mc\.version>([^<]+)</mc\.version>", pom.read_text(encoding="utf-8")
+    )
     if not match:
         raise ToolError(f"no <mc.version> in {pom}, pass --mc")
     return match.group(1).strip()
 
 
-def resolve_vanilla_manifest(mc, session, ui):
+def resolve_vanilla_manifest(mc: str, session: requests.Session, ui: Ui) -> tuple[str, str]:
     with ui.spin("querying Mojang version manifest"):
         manifest = http_json(MANIFEST_URL, session)
     versions = manifest.get("versions")
     if not isinstance(versions, list):
-        raise ToolError("the Mojang version manifest has an unexpected shape, their API changed upstream")
-    entry = next((v for v in versions if isinstance(v, dict) and v.get("id") == mc), None)
+        raise ToolError(
+            "the Mojang version manifest has an unexpected shape, their API changed upstream"
+        )
+    entry = next(
+        (v for v in versions if isinstance(v, dict) and v.get("id") == mc), None
+    )
     if entry is None:
-        latest = ", ".join(str(v.get("id")) for v in versions[:5] if isinstance(v, dict))
-        raise ToolError(f"Minecraft {mc} is not in the version manifest, newest releases are: {latest}")
+        latest = ", ".join(
+            str(v.get("id")) for v in versions[:5] if isinstance(v, dict)
+        )
+        raise ToolError(
+            f"Minecraft {mc} is not in the version manifest, newest releases are: {latest}"
+        )
     with ui.spin(f"resolving the server jar for Minecraft {mc}"):
-        details = http_json(entry.get("url"), session) if isinstance(entry.get("url"), str) else None
+        details = (
+            http_json(entry.get("url"), session)
+            if isinstance(entry.get("url"), str)
+            else None
+        )
     downloads = details.get("downloads") if isinstance(details, dict) else None
     server = downloads.get("server") if isinstance(downloads, dict) else None
     if not isinstance(server, dict) or not server.get("url") or not server.get("sha1"):
-        raise ToolError(f"the manifest entry for {mc} has no server jar download, their API changed upstream")
+        raise ToolError(
+            f"the manifest entry for {mc} has no server jar download, their API changed upstream"
+        )
     return server["url"], server["sha1"]
 
 
-def resolve_vanilla(args, mc, session, ui):
+def resolve_vanilla(args: argparse.Namespace, mc: str, session: requests.Session, ui: Ui) -> tuple[str, str]:
     if args.url:
         sha = args.sha or _sha_from_url(args.url)
         if not sha:
-            raise ToolError("no sha1/sha256 hash found in the URL path, pass the expected digest with --sha")
+            raise ToolError(
+                "no sha1/sha256 hash found in the URL path, pass the expected digest with --sha"
+            )
         digest_algorithm(sha)
         ui.info(f"direct download: {args.url}")
         return args.url, sha.lower()
     return resolve_vanilla_manifest(mc, session, ui)
 
 
-def _sha_from_url(url):
+def _sha_from_url(url: str) -> str | None:
     return next(
-        (segment for segment in re.split(r"[/?]", url)
-         if re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", segment)),
+        (
+            segment
+            for segment in re.split(r"[/?]", url)
+            if re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", segment)
+        ),
         None,
     )
 
 
-def _version_slugs(project):
+def _version_slugs(project: dict) -> list[str]:
     raw = project.get("versions") or {}
     families = raw.values() if isinstance(raw, dict) else raw
-    return [slug for family in families for slug in (family if isinstance(family, list) else [family])]
+    return [
+        slug
+        for family in families
+        for slug in (family if isinstance(family, list) else [family])
+    ]
 
 
-def _select_build(builds):
+def _select_build(builds: list[dict]) -> tuple[str | None, dict | None]:
     by_channel = {}
     for build in builds:
         by_channel.setdefault(str(build.get("channel") or "").upper(), []).append(build)
@@ -339,35 +448,46 @@ def _select_build(builds):
             return None, None
         channel = min(by_channel)
     pool = by_channel[channel]
-    newest = max(pool, key=lambda b: (b.get("build") or b.get("id") or 0, str(b.get("time") or "")))
+    newest = max(
+        pool,
+        key=lambda b: (b.get("build") or b.get("id") or 0, str(b.get("time") or "")),
+    )
     return channel, newest
 
 
-def resolve_paper(args, session, ui):
+def resolve_paper(args: argparse.Namespace, session: requests.Session, ui: Ui) -> tuple[str, str, str]:
     with ui.spin("querying the PaperMC Fill API"):
         project = http_json(f"{FILL_BASE}/projects/paper", session)
     slugs = _version_slugs(project)
     if args.mc:
         if args.mc not in slugs:
             shown = ", ".join(str(v) for v in slugs[:6])
-            raise ToolError(f"PaperMC has no Minecraft {args.mc} build, available: {shown}")
+            raise ToolError(
+                f"PaperMC has no Minecraft {args.mc} build, available: {shown}"
+            )
         version = args.mc
     else:
         if not slugs:
             raise ToolError("the PaperMC Fill API returned no versions")
         version = slugs[0]
     with ui.spin(f"listing Paper builds for {version}"):
-        payload = http_json(f"{FILL_BASE}/projects/paper/versions/{version}/builds", session)
+        payload = http_json(
+            f"{FILL_BASE}/projects/paper/versions/{version}/builds", session
+        )
     builds = payload if isinstance(payload, list) else (payload.get("builds") or [])
     ui.ok(f"{len(builds)} Paper builds for {version}")
     if not builds:
         raise ToolError(f"PaperMC has zero builds for {version} in any channel")
     chosen_channel, chosen = _select_build(builds)
     if chosen_channel != "STABLE":
-        ui.warn(f"newest {version} build is channel {chosen_channel}, not production recommended")
+        ui.warn(
+            f"newest {version} build is channel {chosen_channel}, not production recommended"
+        )
     server = (chosen.get("downloads") or {}).get("server:default")
     if not server:
-        raise ToolError(f"Paper build {chosen.get('id')} has no server:default download")
+        raise ToolError(
+            f"Paper build {chosen.get('id')} has no server:default download"
+        )
     sha = (server.get("checksums") or {}).get("sha256")
     if not sha:
         raise ToolError(f"Paper build {chosen.get('id')} ships no sha256 checksum")
@@ -375,7 +495,9 @@ def resolve_paper(args, session, ui):
     return version, server["url"], sha
 
 
-def resolve_downloads(args, session, ui, repo):
+def resolve_downloads(
+    args: argparse.Namespace, session: requests.Session, ui: Ui, repo: Path
+) -> tuple[str, list[tuple[str, str, str]]]:
     if args.source == "vanilla":
         mc = args.mc or pom_version(repo)
         ui.step(1, f"source: {ui.cyan('vanilla')}, target Minecraft {ui.cyan(mc)}")
@@ -386,8 +508,12 @@ def resolve_downloads(args, session, ui, repo):
     mc = args.mc or version
     pom = pom_version(repo) if repo.joinpath("pom.xml").is_file() else None
     if pom and pom != version:
-        ui.warn(f"tables now describe MC {version} but the pom targets {pom}, consider --mc {pom}")
-    ui.info("the Paper jar is a patcher and carries no game data, the loot tables come from the matching vanilla jar")
+        ui.warn(
+            f"tables now describe MC {version} but the pom targets {pom}, consider --mc {pom}"
+        )
+    ui.info(
+        "the Paper jar is a patcher and carries no game data, the loot tables come from the matching vanilla jar"
+    )
     vanilla_url, vanilla_sha = resolve_vanilla_manifest(mc, session, ui)
     return mc, [
         (paper_url, paper_sha, f"Paper {version} build jar (integrity check)"),
@@ -395,25 +521,37 @@ def resolve_downloads(args, session, ui, repo):
     ]
 
 
-def extract_tables(jar_path, mc, staging, ui):
+def extract_tables(jar_path: Path, mc: str, staging: Path, ui: Ui) -> None:
     with zipfile.ZipFile(jar_path) as bundler:
         bundler_names = {name.replace("\\", "/"): name for name in bundler.namelist()}
         listing = bundler_names.get("META-INF/versions.list")
         if not listing:
-            raise ToolError("the downloaded jar has no META-INF/versions.list, it is not a vanilla server bundler")
-        lines = [line for line in bundler.read(listing).decode("utf-8").splitlines() if line.strip()]
+            raise ToolError(
+                "the downloaded jar has no META-INF/versions.list, it is not a vanilla server bundler"
+            )
+        lines = [
+            line
+            for line in bundler.read(listing).decode("utf-8").splitlines()
+            if line.strip()
+        ]
         if not lines:
             raise ToolError("META-INF/versions.list in the bundler is empty")
         nested_path = lines[-1].split("\t")[-1].strip()
-        entry = bundler_names.get(f"META-INF/versions/{nested_path}") or bundler_names.get(nested_path)
+        entry = bundler_names.get(
+            f"META-INF/versions/{nested_path}"
+        ) or bundler_names.get(nested_path)
         if not entry:
-            raise ToolError(f"the bundler lists nested jar {nested_path!r} but it is not in the archive")
+            raise ToolError(
+                f"the bundler lists nested jar {nested_path!r} but it is not in the archive"
+            )
         ui.ok(f"nested vanilla jar: {nested_path}")
         with bundler.open(entry) as raw, zipfile.ZipFile(raw) as vanilla:
             inner = {name.replace("\\", "/"): name for name in vanilla.namelist()}
             version_key = inner.get("version.json")
             if not version_key:
-                raise ToolError("the vanilla jar has no version.json, the data layout changed upstream")
+                raise ToolError(
+                    "the vanilla jar has no version.json, the data layout changed upstream"
+                )
             version_info = json.loads(vanilla.read(version_key))
             jar_version = version_info.get("name") or version_info.get("id")
             if jar_version != mc:
@@ -426,7 +564,9 @@ def extract_tables(jar_path, mc, staging, ui):
                 key = f"{TABLE_DIR}/{crop}.json"
                 actual = inner.get(key)
                 if not actual:
-                    raise ToolError(f"the vanilla jar is missing {key}, the data layout changed upstream")
+                    raise ToolError(
+                        f"the vanilla jar is missing {key}, the data layout changed upstream"
+                    )
                 data = vanilla.read(actual)
                 if not data:
                     raise ToolError(f"{key} in the vanilla jar is empty")
@@ -437,17 +577,21 @@ def extract_tables(jar_path, mc, staging, ui):
             ui.ok(f"version.json ({len(version_data)} bytes)")
     wheat = (staging / "wheat.json").read_text(encoding="utf-8")
     if "apply_bonus" not in wheat:
-        raise ToolError("wheat.json lost its apply_bonus modifier, the loot table format changed upstream, a human must review the transcription")
+        raise ToolError(
+            "wheat.json lost its apply_bonus modifier, the loot table format changed upstream, a human must review the transcription"
+        )
 
 
-def report(repo, ui):
+def report(repo: Path, ui: Ui) -> None:
     git = shutil.which("git")
     if git is None:
         ui.warn("git not found on PATH, inspect loot_tables/ manually")
         return
     result = subprocess.run(
         [git, "-C", str(repo), "diff", "--stat", "--", "loot_tables/"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode != 0:
         ui.warn("not a git repository, skipping the diff verdict")
@@ -459,42 +603,73 @@ def report(repo, ui):
         ui.line()
         ui.line(ui.yellow("NEXT STEPS, all in one change:"))
         ui.line(ui.yellow("  1. re-read the changed JSONs in loot_tables/"))
-        ui.line(ui.yellow("  2. update VanillaCropDrops AND VanillaCropDropsTest (bounds + expectations)"))
-        ui.line(ui.yellow("  3. mvn package, then commit code, tests, and loot_tables/ together"))
+        ui.line(
+            ui.yellow(
+                "  2. update VanillaCropDrops AND VanillaCropDropsTest (bounds + expectations)"
+            )
+        )
+        ui.line(
+            ui.yellow(
+                "  3. mvn package, then commit code, tests, and loot_tables/ together"
+            )
+        )
     else:
         ui.line()
         ui.ok("loot_tables/ already matches the downloaded jar, nothing to do")
 
 
-def parse_args(argv):
+def parse_args(argv: list[str]) -> argparse.Namespace:
     kwargs = {
         "prog": "sync_loot_tables.py",
         "description": "Re-extract loot_tables/ for ReplenishPlusPlus from Mojang's vanilla server jar, or from PaperMC via the Fill API. Requires rich and requests (tools/requirements.txt).",
         "epilog": "examples:\n"
-                  "  python tools/sync_loot_tables.py\n"
-                  "  python tools/sync_loot_tables.py --mc 26.4\n"
-                  "  python tools/sync_loot_tables.py --source paper --mc 26.3\n"
-                  "  python tools/sync_loot_tables.py --url https://piston-data.mojang.com/v1/objects/<sha1>/server.jar\n"
-                  "Vanilla downloads verify against the sha1 from Mojang's manifest (or the URL tail with --url), Paper against the Fill API sha256.\n"
-                  "Loot tables are vanilla data: with --source paper the Paper build is still downloaded and verified, but the tables are extracted from the matching vanilla jar.",
+        "  python tools/sync_loot_tables.py\n"
+        "  python tools/sync_loot_tables.py --mc 26.4\n"
+        "  python tools/sync_loot_tables.py --source paper --mc 26.3\n"
+        "  python tools/sync_loot_tables.py --url https://piston-data.mojang.com/v1/objects/<sha1>/server.jar\n"
+        "Vanilla downloads verify against the sha1 from Mojang's manifest (or the URL tail with --url), Paper against the Fill API sha256.\n"
+        "Loot tables are vanilla data: with --source paper the Paper build is still downloaded and verified, but the tables are extracted from the matching vanilla jar.",
         "formatter_class": argparse.RawDescriptionHelpFormatter,
     }
     try:
         parser = argparse.ArgumentParser(**kwargs, suggest_on_error=True)
     except TypeError:
         parser = argparse.ArgumentParser(**kwargs)
-    parser.add_argument("--mc", help="target Minecraft version (default: pom.xml mc.version for vanilla, newest for paper)")
-    parser.add_argument("--source", choices=("vanilla", "paper"), default="vanilla", help="jar source (default: vanilla)")
-    parser.add_argument("--url", help="direct vanilla server.jar URL, skips the manifest")
-    parser.add_argument("--sha", help="expected digest for --url, sha1 (40 hex) or sha256 (64 hex), defaults to the URL tail")
-    parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parent.parent, help="repository root (default: auto-detected)")
-    parser.add_argument("--user-agent", default=os.environ.get("RPP_SYNC_USER_AGENT") or DEFAULT_UA,
-                        help="User-Agent for API calls, must identify your software with a contact, env RPP_SYNC_USER_AGENT (PaperMC rejects generic agents)")
-    parser.add_argument("--debug", action="store_true", help="print a traceback on failure")
+    parser.add_argument(
+        "--mc",
+        help="target Minecraft version (default: pom.xml mc.version for vanilla, newest for paper)",
+    )
+    parser.add_argument(
+        "--source",
+        choices=("vanilla", "paper"),
+        default="vanilla",
+        help="jar source (default: vanilla)",
+    )
+    parser.add_argument(
+        "--url", help="direct vanilla server.jar URL, skips the manifest"
+    )
+    parser.add_argument(
+        "--sha",
+        help="expected digest for --url, sha1 (40 hex) or sha256 (64 hex), defaults to the URL tail",
+    )
+    parser.add_argument(
+        "--repo",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent,
+        help="repository root (default: auto-detected)",
+    )
+    parser.add_argument(
+        "--user-agent",
+        default=os.environ.get("RPP_SYNC_USER_AGENT") or DEFAULT_UA,
+        help="User-Agent for API calls, must identify your software with a contact, env RPP_SYNC_USER_AGENT (PaperMC rejects generic agents)",
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="print a traceback on failure"
+    )
     return parser.parse_args(argv)
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     ui = Ui()
     args = parse_args(argv)
     repo = args.repo.resolve()
@@ -533,7 +708,9 @@ def main(argv):
                     shutil.rmtree(target)
                 shutil.move(str(staging), str(target))
             except OSError as error:
-                raise ToolError(f"could not install loot_tables/ into {target}: {error}, is a file there locked by another process?") from error
+                raise ToolError(
+                    f"could not install loot_tables/ into {target}: {error}, is a file there locked by another process?"
+                ) from error
             ui.ok(f"loot_tables/ holds {len(CROPS)} tables + version.json")
 
         ui.step(5, "verifying against the repository")
@@ -560,7 +737,13 @@ def main(argv):
         if args.debug:
             traceback.print_exc()
         else:
-            ui.line(ui.red(escape(f"error: {type(error).__name__}: {error} (run with --debug for a traceback)")))
+            ui.line(
+                ui.red(
+                    escape(
+                        f"error: {type(error).__name__}: {error} (run with --debug for a traceback)"
+                    )
+                )
+            )
         return 1
 
 
