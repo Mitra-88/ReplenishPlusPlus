@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Offline tests for sync_loot_tables.py: run with `python tools/test_sync_loot_tables.py`."""
 
 import contextlib
 import hashlib
@@ -20,8 +19,9 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import requests
-import sync_loot_tables as tool
 from rich.console import Console
+
+import sync_loot_tables as tool
 
 WHEAT_BODY = '{"modifier":{"type":"minecraft:apply_bonus"}}'
 BLOB = random.Random(263).randbytes(5 * 1024 * 1024 + 12345)
@@ -334,10 +334,9 @@ class ParallelDownloadTest(DownloadTestBase):
                 self.assertEqual(destination.read_bytes(), BLOB)
 
     def test_download_all_verifies_and_returns_path(self):
-        with blob_server() as url:
-            with tempfile.TemporaryDirectory() as scratch:
-                paths = tool.download_all(self.session, [(url, hashlib.sha1(BLOB).hexdigest(), "test jar")], pathlib.Path(scratch), self.ui)
-                self.assertEqual(paths[0].read_bytes(), BLOB)
+        with blob_server() as url, tempfile.TemporaryDirectory() as scratch:
+            paths = tool.download_all(self.session, [(url, hashlib.sha1(BLOB).hexdigest(), "test jar")], pathlib.Path(scratch), self.ui)
+            self.assertEqual(paths[0].read_bytes(), BLOB)
 
     def test_server_erroring_on_ranges_falls_back_cleanly(self):
         with blob_server(fail_range=True) as url:
@@ -371,20 +370,21 @@ class ProbeGuardTest(DownloadTestBase):
 
 class StreamRetryTest(DownloadTestBase):
     def test_truncated_bodies_are_retried(self):
-        with blob_server(supports_range=False, flaky_stream=2) as url:
-            with tempfile.TemporaryDirectory() as scratch:
-                destination = pathlib.Path(scratch) / "out.jar"
-                with ui_progress() as progress:
-                    tool._stream_download(self.session, url, destination, self.ui, progress, "test", len(BLOB))
-                self.assertEqual(destination.read_bytes(), BLOB)
+        with blob_server(supports_range=False, flaky_stream=2) as url, tempfile.TemporaryDirectory() as scratch:
+            destination = pathlib.Path(scratch) / "out.jar"
+            with ui_progress() as progress:
+                tool._stream_download(self.session, url, destination, self.ui, progress, "test", len(BLOB))
+            self.assertEqual(destination.read_bytes(), BLOB)
 
     def test_permanent_failure_raises_after_retries(self):
-        with blob_server(supports_range=False, flaky_stream=99) as url:
-            with tempfile.TemporaryDirectory() as scratch:
-                destination = pathlib.Path(scratch) / "out.jar"
-                with ui_progress() as progress:
-                    with self.assertRaisesRegex(tool.ToolError, "after 3 attempts"):
-                        tool._stream_download(self.session, url, destination, self.ui, progress, "test", len(BLOB))
+        with (
+            blob_server(supports_range=False, flaky_stream=99) as url,
+            tempfile.TemporaryDirectory() as scratch,
+            ui_progress() as progress,
+            self.assertRaisesRegex(tool.ToolError, "after 3 attempts"),
+        ):
+            destination = pathlib.Path(scratch) / "out.jar"
+            tool._stream_download(self.session, url, destination, self.ui, progress, "test", len(BLOB))
 
 
 class MainTest(unittest.TestCase):

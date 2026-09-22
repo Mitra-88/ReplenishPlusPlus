@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Sync loot_tables/ for ReplenishPlusPlus from the vanilla Minecraft server jar."""
 
 import argparse
 import concurrent.futures
@@ -8,7 +7,6 @@ import json
 import os
 import platform
 import re
-import requests
 import shutil
 import subprocess
 import sys
@@ -18,10 +16,22 @@ import time
 import traceback
 import zipfile
 from pathlib import Path
+
+import requests
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
-from rich.progress import BarColumn, DownloadColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn, TransferSpeedColumn
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
 MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 FILL_BASE = "https://fill.papermc.io/v3"
@@ -176,11 +186,11 @@ def _fetch_part(session, url, start, end, file, lock, progress, task, part_index
                     position += len(chunk)
                     progress.update(task, advance=len(chunk))
                 if position != end + 1:
-                    raise IOError(f"short read: got {position - start} of {end + 1 - start} bytes")
+                    raise OSError(f"short read: got {position - start} of {end + 1 - start} bytes")
                 return
         except _NotRangeable:
             raise
-        except (requests.exceptions.RequestException, IOError) as error:
+        except (OSError, requests.exceptions.RequestException) as error:
             if attempt == RETRIES - 1:
                 raise ToolError(f"part {part_index} failed after {RETRIES} attempts: {error}") from error
             time.sleep(BACKOFF_SECONDS * 2 ** attempt)
@@ -209,7 +219,7 @@ def _parallel_download(session, url, total, destination, ui, progress, label):
                         pending.cancel()
                 except concurrent.futures.CancelledError:
                     pass
-                except Exception as error:
+                except Exception as error:  # noqa: BLE001, collect every worker failure and re-raise after cleanup
                     failure = failure or error
     progress.remove_task(task)
     if range_unsupported:
@@ -327,7 +337,7 @@ def _select_build(builds):
     if channel is None:
         if not by_channel:
             return None, None
-        channel = sorted(by_channel)[0]
+        channel = min(by_channel)
     pool = by_channel[channel]
     newest = max(pool, key=lambda b: (b.get("build") or b.get("id") or 0, str(b.get("time") or "")))
     return channel, newest
@@ -437,7 +447,7 @@ def report(repo, ui):
         return
     result = subprocess.run(
         [git, "-C", str(repo), "diff", "--stat", "--", "loot_tables/"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
         ui.warn("not a git repository, skipping the diff verdict")
@@ -457,18 +467,18 @@ def report(repo, ui):
 
 
 def parse_args(argv):
-    kwargs = dict(
-        prog="sync_loot_tables.py",
-        description="Re-extract loot_tables/ for ReplenishPlusPlus from Mojang's vanilla server jar, or from PaperMC via the Fill API. Requires rich and requests (tools/requirements.txt).",
-        epilog="examples:\n"
-               "  python tools/sync_loot_tables.py\n"
-               "  python tools/sync_loot_tables.py --mc 26.4\n"
-               "  python tools/sync_loot_tables.py --source paper --mc 26.3\n"
-               "  python tools/sync_loot_tables.py --url https://piston-data.mojang.com/v1/objects/<sha1>/server.jar\n"
-               "Vanilla downloads verify against the sha1 from Mojang's manifest (or the URL tail with --url), Paper against the Fill API sha256.\n"
-               "Loot tables are vanilla data: with --source paper the Paper build is still downloaded and verified, but the tables are extracted from the matching vanilla jar.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+    kwargs = {
+        "prog": "sync_loot_tables.py",
+        "description": "Re-extract loot_tables/ for ReplenishPlusPlus from Mojang's vanilla server jar, or from PaperMC via the Fill API. Requires rich and requests (tools/requirements.txt).",
+        "epilog": "examples:\n"
+                  "  python tools/sync_loot_tables.py\n"
+                  "  python tools/sync_loot_tables.py --mc 26.4\n"
+                  "  python tools/sync_loot_tables.py --source paper --mc 26.3\n"
+                  "  python tools/sync_loot_tables.py --url https://piston-data.mojang.com/v1/objects/<sha1>/server.jar\n"
+                  "Vanilla downloads verify against the sha1 from Mojang's manifest (or the URL tail with --url), Paper against the Fill API sha256.\n"
+                  "Loot tables are vanilla data: with --source paper the Paper build is still downloaded and verified, but the tables are extracted from the matching vanilla jar.",
+        "formatter_class": argparse.RawDescriptionHelpFormatter,
+    }
     try:
         parser = argparse.ArgumentParser(**kwargs, suggest_on_error=True)
     except TypeError:
@@ -545,7 +555,7 @@ def main(argv):
         except OSError:
             pass
         return 1
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001, a CLI reports every failure instead of dumping a traceback
         ui.line()
         if args.debug:
             traceback.print_exc()
