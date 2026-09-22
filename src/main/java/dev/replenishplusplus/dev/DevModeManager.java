@@ -112,6 +112,13 @@ public final class DevModeManager {
         lastCrop.remove(playerId);
     }
 
+    public void onRespawn(Player player) {
+        if (!enabled.contains(player.getUniqueId())) return;
+        if (!plugin.getConfigCache().dev().fastWater()) return;
+        restoreWaterSpeed(player);
+        applyWaterSpeed(player);
+    }
+
     public void shutdown() {
         if (tickTask != null) {
             tickTask.cancel();
@@ -371,7 +378,8 @@ public final class DevModeManager {
     }
 
     public void onCropPlaced(Block block) {
-        if (enabled.isEmpty() || !CROP_MATERIALS.contains(block.getType())) return;
+        if (enabled.isEmpty() || !plugin.getConfigCache().dev().fastGrowth()) return;
+        if (!CROP_MATERIALS.contains(block.getType())) return;
         BlockData data = block.getBlockData();
         if (!(data instanceof Ageable ageable) || ageable.getAge() >= ageable.getMaximumAge()) return;
         ageable.setAge(ageable.getMaximumAge());

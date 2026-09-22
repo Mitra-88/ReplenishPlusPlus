@@ -40,6 +40,7 @@ public record ConfigCache(
             boolean fastGrowth) {}
 
     public static final int DEFAULT_REPLANT_DELAY_TICKS = 3;
+    public static final int MIN_REPLANT_DELAY_TICKS = 1;
     public static final int MAX_REPLANT_DELAY_TICKS = 10;
     public static final int DEFAULT_MAX_REPLANTS_PER_TICK = 1024;
     public static final int DEFAULT_MAX_REPLANTS_QUEUED = 4096;
@@ -71,7 +72,7 @@ public record ConfigCache(
     public static ConfigCache from(FileConfiguration config, List<String> issues) {
         int delayTicks = clampAtLeast(
                 ConfigReader.intValue(config, "replantDelayTicks", DEFAULT_REPLANT_DELAY_TICKS, issues),
-                DEFAULT_REPLANT_DELAY_TICKS, "replantDelayTicks", issues);
+                MIN_REPLANT_DELAY_TICKS, "replantDelayTicks", issues);
         if (delayTicks > MAX_REPLANT_DELAY_TICKS) {
             issues.add("replantDelayTicks: " + delayTicks + " exceeds the maximum of "
                     + MAX_REPLANT_DELAY_TICKS + " ticks - using " + MAX_REPLANT_DELAY_TICKS);

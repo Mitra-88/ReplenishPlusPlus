@@ -54,6 +54,10 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         devModeManager = new DevModeManager(this);
         padManager = new TeleportPadManager(this);
         reloadLocalConfig();
+        if (replantQueue == null) {
+            ConfigCache fallback = getConfigCache();
+            restartQueue(fallback.maxReplantsPerTick(), fallback.maxReplantsQueued());
+        }
 
         ConfigCache config = getConfigCache();
         int enabledCrops = CropType.values().length - config.disabledCrops().size();

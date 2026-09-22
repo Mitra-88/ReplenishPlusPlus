@@ -7,6 +7,7 @@ import org.bukkit.event.block.BlockFormEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 
 public final class DevModeListener implements Listener {
@@ -42,5 +43,10 @@ public final class DevModeListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         devMode.quit(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent event) {
+        devMode.onRespawn(event.getPlayer());
     }
 }
