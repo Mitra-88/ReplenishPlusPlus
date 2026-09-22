@@ -9,6 +9,8 @@
 out/
 
 /agent_sources/
+/python-3.14-docs-text/
+__pycache__/
 .zcode/
 
 # Compiled class file
