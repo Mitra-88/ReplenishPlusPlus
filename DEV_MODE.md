@@ -48,7 +48,8 @@ are read.
 3. Farm.
 4. `/spark profiler stop`, or just wait out the timeout: the **Harvest Report** prints
    to you, the console, and every dev player. It shows the window length, crops
-   harvested with a crops-per-second rate, a per-crop breakdown, how many items the
+   harvested with a crops-per-second rate, a per-crop breakdown, the harvesting
+   tool(s) with their tier, enchantments, and harvest count, how many items the
    auto-clear deleted in that window, and your session totals. The report always
    follows whoever ran the profiler, so you get it even if you toggled dev mode off
    before stopping.

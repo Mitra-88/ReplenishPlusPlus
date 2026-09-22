@@ -5,6 +5,7 @@ import dev.replenishplusplus.config.ConfigCache;
 import dev.replenishplusplus.config.Messages;
 import dev.replenishplusplus.crop.CropType;
 import dev.replenishplusplus.crop.HarvestTool;
+import dev.replenishplusplus.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -17,15 +18,19 @@ import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +69,8 @@ public final class DevModeManager {
     private final Set<UUID> enabled = new HashSet<>();
     private final Map<UUID, CropType> lastCrop = new HashMap<>();
     private final long[] windowByCrop = new long[CropType.values().length];
+    private final Map<Material, Long> windowToolUses = new HashMap<>();
+    private final Map<Material, Map<Enchantment, Integer>> windowToolEnchants = new HashMap<>();
     private BukkitTask tickTask;
     private BukkitTask scheduledStop;
     private boolean counting;
@@ -133,12 +140,18 @@ public final class DevModeManager {
         return anyActive() && plugin.getConfigCache().dev().noIce();
     }
 
-    public void onHarvest(UUID playerId, CropType crop, boolean mature) {
+    public void onHarvest(UUID playerId, CropType crop, boolean mature, ItemStack tool) {
         if (enabled.isEmpty() || !enabled.contains(playerId)) return;
         lastCrop.put(playerId, crop);
-        if (mature) {
-            totalHarvests++;
-            if (counting) windowByCrop[crop.ordinal()]++;
+        if (!mature) return;
+        totalHarvests++;
+        if (!counting) return;
+        windowByCrop[crop.ordinal()]++;
+        if (tool == null || tool.getType().isAir()) return;
+        windowToolUses.merge(tool.getType(), 1L, Long::sum);
+        Map<Enchantment, Integer> enchants = windowToolEnchants.computeIfAbsent(tool.getType(), _ -> new HashMap<>());
+        for (Map.Entry<Enchantment, Integer> entry : tool.getEnchantments().entrySet()) {
+            enchants.merge(entry.getKey(), entry.getValue(), Math::max);
         }
     }
 
@@ -223,6 +236,8 @@ public final class DevModeManager {
         counting = true;
         reportActor = actor;
         Arrays.fill(windowByCrop, 0);
+        windowToolUses.clear();
+        windowToolEnchants.clear();
         windowBaselineHarvests = totalHarvests;
         windowBaselineCleared = totalCleared;
         windowStartNanos = System.nanoTime();
@@ -266,18 +281,63 @@ public final class DevModeManager {
                     .append("<gray> ").append(crop.displayName().toLowerCase(Locale.ROOT));
         }
         if (byCrop.isEmpty()) byCrop.append("<dark_gray>none");
+
+        StringBuilder byTool = new StringBuilder();
+        List<Map.Entry<Material, Long>> usedTools = new ArrayList<>(windowToolUses.entrySet());
+        usedTools.sort(Map.Entry.<Material, Long>comparingByValue().reversed());
+        for (Map.Entry<Material, Long> entry : usedTools) {
+            byTool.append("<dark_gray>» <gradient:#55FFB4:#007FFF>Harvesting tool: <white>")
+                    .append(TextUtil.prettyName(entry.getKey().name()))
+                    .append(enchantsFor(entry.getKey()))
+                    .append("<dark_gray> · <gray>")
+                    .append(String.format(Locale.ROOT, "%,d", entry.getValue()))
+                    .append(" harvests\n");
+        }
+
         String report = """
                 <gradient:#FFD700:#FF5555><bold>          ✦ Harvest Report ✦</bold></gradient>
                 <dark_gray>» <gray>Profiler window: <white>%s
                 <dark_gray>» <gradient:#55FFB4:#007FFF>Harvested: <white>%,d <gray>crops <dark_gray>(<white>%s<gray>/s)
                 <dark_gray>» <gray>By crop: %s
-                <dark_gray>» <gradient:#FFAA00:#FF5555>Auto-cleared: <white>%,d <gray>items
+                %s<dark_gray>» <gradient:#FFAA00:#FF5555>Auto-cleared: <white>%,d <gray>items
                 <dark_gray>» <gray>Session total: <white>%,d <gray>crops harvested<dark_gray>, <white>%,d <gray>items cleared
                 <gradient:#FFD700:#FF5555><st>                                       </st></gradient>"""
                 .formatted(formatDuration(seconds), harvested,
                         String.format(Locale.ROOT, "%,.2f", harvested / seconds),
-                        byCrop.toString(), cleared, totalHarvests, totalCleared);
+                        byCrop.toString(), byTool.toString(), cleared, totalHarvests, totalCleared);
         return Messages.MINI_MESSAGE.deserialize(report);
+    }
+
+    private String enchantsFor(Material toolMaterial) {
+        Map<Enchantment, Integer> enchants = windowToolEnchants.get(toolMaterial);
+        if (enchants == null || enchants.isEmpty()) return "";
+        List<Enchantment> sorted = new ArrayList<>(enchants.keySet());
+        sorted.sort(Comparator.comparing((Enchantment enchantment) -> enchantment.getKey().value()));
+        StringBuilder text = new StringBuilder(" <dark_gray>(");
+        boolean first = true;
+        for (Enchantment enchantment : sorted) {
+            if (!first) text.append("<gray>, ");
+            text.append("<white>").append(TextUtil.prettyName(enchantment.getKey().value()))
+                    .append(" ").append(roman(enchants.get(enchantment)));
+            first = false;
+        }
+        return text.append("<dark_gray>)").toString();
+    }
+
+    private static String roman(int level) {
+        return switch (level) {
+            case 1 -> "I";
+            case 2 -> "II";
+            case 3 -> "III";
+            case 4 -> "IV";
+            case 5 -> "V";
+            case 6 -> "VI";
+            case 7 -> "VII";
+            case 8 -> "VIII";
+            case 9 -> "IX";
+            case 10 -> "X";
+            default -> String.valueOf(level);
+        };
     }
 
     private static String formatDuration(double seconds) {

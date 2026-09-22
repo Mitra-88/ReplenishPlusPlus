@@ -80,7 +80,7 @@ public final class ReplenishPlusPlusListener implements Listener {
         Player player = event.getPlayer();
         boolean replant = !plan.seedConsumed() || SeedIndex.consume(player, plan.crop().seed());
         if (!replant) notifyNeedSeed(player, plan.config(), plan.crop());
-        devModeManager.onHarvest(player.getUniqueId(), plan.crop(), plan.mature());
+        devModeManager.onHarvest(player.getUniqueId(), plan.crop(), plan.mature(), plan.tool());
 
         if (replant) {
             plugin.enqueueReplant(event.getBlock(), plan.config().replantDelayTicks(), plan.replantedAge(),
@@ -141,7 +141,7 @@ public final class ReplenishPlusPlusListener implements Listener {
         event.setDropItems(false);
         pendingHarvests.put(event, new HarvestPlan(config, crop, drops, replantedAge,
                 info instanceof CocoaCropInfo cocoa ? determineCocoaFacing(cocoa, block, blockData, player) : null,
-                seedConsumed, wasMature));
+                seedConsumed, wasMature, tool));
     }
 
     private boolean isInNonSurvivalMode(Player player) {
@@ -239,5 +239,6 @@ public final class ReplenishPlusPlusListener implements Listener {
             int replantedAge,
             BlockFace cocoaFacing,
             boolean seedConsumed,
-            boolean mature) {}
+            boolean mature,
+            ItemStack tool) {}
 }
