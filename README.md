@@ -4,7 +4,7 @@ Auto-replant for Paper/Purpur. Break a crop, it goes right back in the ground.
 
 If you ever farmed on Hypixel SkyBlock, you already know the idea, it's Replenish, the enchantment that made farming not completely miserable.
 
-![Preview](assets/output.webp)
+<img src="preview/preview.webp" alt="Preview" width="896" height="504">
 
 ## What it does
 

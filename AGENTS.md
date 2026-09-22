@@ -207,7 +207,7 @@ Reviewed and deliberately accepted across audit rounds, each was re-examined and
 
 - Lookup order for API questions: `agent_sources/src/` first (exact sources for the pinned version), then the live docs, then the local Maven repo (`%USERPROFILE%\.m2\repository`, laid out as `<group path>/<artifact>/<version>/<artifact>-<version>-sources.jar` / `-javadoc.jar`) only as a fallback. If the sources and docs don't settle an API question, ask the user instead of guessing.
 - `README.md`, user-facing behavior, commands, permissions, full default config; keep it in sync with `config.yml` and `paper-plugin.yml`.
-- `assets/output.webp`, the README preview image (tracked, referenced by nothing else).
+- `preview/preview.webp`, the README preview image, rendered at 896 × 504 (replaced the old `assets/output.webp`).
 - `DEV_MODE.md`, dev mode's doc home (features, config keys, spark-counter workflow); the only place dev mode is documented, since it is deliberately absent from README, `config.yml`, menus, and the `/rpp reload` output.
 - `BENCHMARK.md`, measured scaling numbers from a live spark capture (harvest rate, server-thread cost, player-count extrapolation); refresh it when re-benchmarking.
 - The `config.yml` comments are the authoritative semantics for every setting.
