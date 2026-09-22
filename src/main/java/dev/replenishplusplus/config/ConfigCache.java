@@ -1,7 +1,6 @@
 package dev.replenishplusplus.config;
 
 import dev.replenishplusplus.crop.CropType;
-import dev.replenishplusplus.queue.ReplantQueue;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -41,6 +40,7 @@ public record ConfigCache(
             boolean fastGrowth) {}
 
     public static final int DEFAULT_REPLANT_DELAY_TICKS = 3;
+    public static final int MAX_REPLANT_DELAY_TICKS = 10;
     public static final int DEFAULT_MAX_REPLANTS_PER_TICK = 1024;
     public static final int DEFAULT_MAX_REPLANTS_QUEUED = 4096;
     public static final int MIN_REPLANTS_PER_TICK = 256;
@@ -72,9 +72,10 @@ public record ConfigCache(
         int delayTicks = clampAtLeast(
                 ConfigReader.intValue(config, "replantDelayTicks", DEFAULT_REPLANT_DELAY_TICKS, issues),
                 DEFAULT_REPLANT_DELAY_TICKS, "replantDelayTicks", issues);
-        if (delayTicks > ReplantQueue.MAX_DELAY_TICKS) {
-            issues.add("replantDelayTicks: " + delayTicks + " exceeds the replant wheel capacity of "
-                    + ReplantQueue.MAX_DELAY_TICKS + " ticks - delays will be capped");
+        if (delayTicks > MAX_REPLANT_DELAY_TICKS) {
+            issues.add("replantDelayTicks: " + delayTicks + " exceeds the maximum of "
+                    + MAX_REPLANT_DELAY_TICKS + " ticks - using " + MAX_REPLANT_DELAY_TICKS);
+            delayTicks = MAX_REPLANT_DELAY_TICKS;
         }
         int perTick = clampAtLeast(
                 ConfigReader.intValue(config, "maxReplantsPerTick", DEFAULT_MAX_REPLANTS_PER_TICK, issues),

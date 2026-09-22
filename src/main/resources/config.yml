@@ -27,7 +27,7 @@ messageStyle: CHAT
 # Max delay before a broken crop gets replanted, in ticks. 20 ticks = 1 second.
 # Each replant lands on a random tick between 1 and this number, which spreads
 # the replant work evenly instead of batching it, so bigger values stay smooth.
-# (1 to 8191)
+# (1 to 10)
 replantDelayTicks: 3
 
 # Max crops replanted in a single tick, so nobody can lag the server by
