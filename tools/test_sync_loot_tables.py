@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for sync_loot_tables.py: run with `python tools/test_sync_loot_tables.py`."""
 
+import contextlib
 import hashlib
 import io
 import json
@@ -14,12 +15,16 @@ import unittest
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import requests
 import sync_loot_tables as tool
 from rich.console import Console
+
+WHEAT_BODY = '{"modifier":{"type":"minecraft:apply_bonus"}}'
+BLOB = random.Random(263).randbytes(5 * 1024 * 1024 + 12345)
 
 
 def quiet_ui():
@@ -28,6 +33,73 @@ def quiet_ui():
 
 def ui_progress():
     return quiet_ui().progress_bar()
+
+
+def bundler_bytes(version="26.3", separator="\\", crops=None, wheat_body=WHEAT_BODY):
+    inner = io.BytesIO()
+    with zipfile.ZipFile(inner, "w") as archive:
+        archive.writestr("version.json", json.dumps({"name": version, "id": version}))
+        for crop in crops or tool.CROPS:
+            body = wheat_body if crop == "wheat" else "{}"
+            archive.writestr(f"data/minecraft/loot_table/blocks/{crop}.json", body)
+    outer = io.BytesIO()
+    with zipfile.ZipFile(outer, "w") as archive:
+        archive.writestr(f"META-INF{separator}versions.list", f"{'0' * 64}\t26.3\t26.3/server-26.3.jar\n")
+        archive.writestr(f"META-INF{separator}versions{separator}26.3{separator}server-26.3.jar", inner.getvalue())
+    return outer.getvalue()
+
+
+@contextlib.contextmanager
+def blob_server(**flags):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _BlobHandler)
+    server.supports_range = flags.get("supports_range", True)
+    server.fail_range = flags.get("fail_range", False)
+    server.flaky_stream = flags.get("flaky_stream", 0)
+    server.content_encoding = flags.get("content_encoding", False)
+    server.blob = BLOB
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/server.jar"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+class _BlobHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        server = self.server
+        range_header = self.headers.get("Range")
+        supports_range = getattr(server, "supports_range", False)
+        if getattr(server, "fail_range", False) and range_header:
+            self.send_response(500)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        match = re.fullmatch(r"bytes=(\d+)-(\d+)", range_header or "") if supports_range else None
+        if match:
+            start, end = int(match[1]), int(match[2])
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {start}-{end}/{len(server.blob)}")
+            self.send_header("Content-Length", str(end - start + 1))
+            self.end_headers()
+            self.wfile.write(server.blob[start:end + 1])
+            return
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(server.blob)))
+        if supports_range:
+            self.send_header("Accept-Ranges", "bytes")
+        if getattr(server, "content_encoding", False):
+            self.send_header("Content-Encoding", "gzip")
+        self.end_headers()
+        if getattr(server, "flaky_stream", 0) > 0:
+            server.flaky_stream -= 1
+            self.wfile.write(server.blob[:len(server.blob) // 2])
+            self.wfile.close()
+            return
+        self.wfile.write(server.blob)
+
+    def log_message(self, *args):
+        pass
 
 
 class DigestAlgorithmTest(unittest.TestCase):
@@ -92,6 +164,9 @@ class VersionSlugsTest(unittest.TestCase):
     def test_accepts_plain_list_shape(self):
         self.assertEqual(tool._version_slugs({"versions": ["26.3", "26.2"]}), ["26.3", "26.2"])
 
+    def test_handles_string_entries(self):
+        self.assertEqual(tool._version_slugs({"versions": {"26.3": "26.3"}}), ["26.3"])
+
     def test_empty_project_yields_empty(self):
         self.assertEqual(tool._version_slugs({}), [])
 
@@ -127,21 +202,51 @@ class SelectBuildTest(unittest.TestCase):
         self.assertEqual(tool._select_build([]), (None, None))
 
 
-class ExtractTablesTest(unittest.TestCase):
-    WHEAT_BODY = '{"modifier":{"type":"minecraft:apply_bonus"}}'
+class ResolvePaperErrorTest(unittest.TestCase):
+    def run_resolve(self, side_effects, mc="26.3"):
+        args = SimpleNamespace(mc=mc, source="paper", url=None, sha=None, repo=pathlib.Path("."))
+        with mock.patch.object(tool, "http_json", side_effect=side_effects):
+            return tool.resolve_paper(args, None, quiet_ui())
 
-    def make_bundler(self, root, version="26.3", separator="\\", crops=None, wheat_body=None):
-        inner = io.BytesIO()
-        with zipfile.ZipFile(inner, "w") as archive:
-            archive.writestr("version.json", json.dumps({"name": version, "id": version}))
-            for crop in crops or tool.CROPS:
-                body = (wheat_body or self.WHEAT_BODY) if crop == "wheat" else "{}"
-                archive.writestr(f"data/minecraft/loot_table/blocks/{crop}.json", body)
-        bundler = root / "bundler.jar"
-        with zipfile.ZipFile(bundler, "w") as archive:
-            archive.writestr(f"META-INF{separator}versions.list", f"{'0' * 64}\t26.3\t26.3/server-26.3.jar\n")
-            archive.writestr(f"META-INF{separator}versions{separator}26.3{separator}server-26.3.jar", inner.getvalue())
-        return bundler
+    def test_unknown_version_lists_available(self):
+        project = {"versions": {"26.3": ["26.3"], "26.2": ["26.2"]}}
+        with self.assertRaisesRegex(tool.ToolError, "26.2"):
+            self.run_resolve([project], mc="99.9")
+
+    def test_zero_builds_fails(self):
+        with self.assertRaisesRegex(tool.ToolError, "zero builds"):
+            self.run_resolve([{"versions": {"26.3": ["26.3"]}}, []])
+
+    def test_missing_checksum_fails(self):
+        build = paper_build(1, "STABLE")
+        del build["downloads"]["server:default"]["checksums"]
+        with self.assertRaisesRegex(tool.ToolError, "sha256"):
+            self.run_resolve([{"versions": {"26.3": ["26.3"]}}, [build]])
+
+
+class ManifestShapeTest(unittest.TestCase):
+    def run_resolve(self, side_effects, mc="26.3"):
+        with mock.patch.object(tool, "http_json", side_effect=side_effects):
+            return tool.resolve_vanilla_manifest(mc, None, quiet_ui())
+
+    def test_non_list_versions_fails(self):
+        with self.assertRaisesRegex(tool.ToolError, "unexpected shape"):
+            self.run_resolve([{"versions": "garbage"}])
+
+    def test_entry_without_url_fails(self):
+        with self.assertRaisesRegex(tool.ToolError, "no server jar download"):
+            self.run_resolve([{"versions": [{"id": "26.3"}]}, {}])
+
+    def test_entry_without_server_download_fails(self):
+        with self.assertRaisesRegex(tool.ToolError, "no server jar download"):
+            self.run_resolve([{"versions": [{"id": "26.3", "url": "https://x.test"}]}, {"downloads": {}}])
+
+
+class ExtractTablesTest(unittest.TestCase):
+    def make_bundler(self, root, version="26.3", separator="\\", crops=None, wheat_body=WHEAT_BODY):
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "bundler.jar").write_bytes(bundler_bytes(version, separator, crops, wheat_body))
+        return root / "bundler.jar"
 
     def test_extracts_through_backslash_stored_entries(self):
         with tempfile.TemporaryDirectory() as scratch:
@@ -172,6 +277,19 @@ class ExtractTablesTest(unittest.TestCase):
             with self.assertRaisesRegex(tool.ToolError, "cocoa"):
                 tool.extract_tables(self.make_bundler(root, crops=crops), "26.3", root / "staging", quiet_ui())
 
+    def test_missing_version_json_fails(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            root = pathlib.Path(scratch)
+            inner = io.BytesIO()
+            with zipfile.ZipFile(inner, "w") as archive:
+                archive.writestr("data/minecraft/loot_table/blocks/wheat.json", "{}")
+            jar = root / "bundler.jar"
+            with zipfile.ZipFile(jar, "w") as archive:
+                archive.writestr("META-INF\\versions.list", f"{'0' * 64}\t26.3\t26.3/server-26.3.jar\n")
+                archive.writestr("META-INF\\versions\\26.3\\server-26.3.jar", inner.getvalue())
+            with self.assertRaisesRegex(tool.ToolError, "version.json"):
+                tool.extract_tables(jar, "26.3", root / "staging", quiet_ui())
+
     def test_wheat_without_fortune_modifier_fails(self):
         with tempfile.TemporaryDirectory() as scratch:
             root = pathlib.Path(scratch)
@@ -195,84 +313,139 @@ class VerifyDigestTest(unittest.TestCase):
                 tool.verify_digest(path, hashlib.sha1(b"other").hexdigest(), quiet_ui())
 
 
-BLOB = random.Random(263).randbytes(5 * 1024 * 1024 + 12345)
+class DownloadTestBase(unittest.TestCase):
+    def setUp(self):
+        self.session = tool.http_session(tool.DEFAULT_UA)
+        self.ui = quiet_ui()
+        patcher = mock.patch.object(tool, "BACKOFF_SECONDS", 0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
 
-class _BlobHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        range_header = self.headers.get("Range")
-        supports = getattr(self.server, "supports_range", False)
-        match = re.fullmatch(r"bytes=(\d+)-(\d+)", range_header or "") if supports else None
-        if match:
-            start, end = int(match[1]), int(match[2])
-            self.send_response(206)
-            self.send_header("Content-Range", f"bytes {start}-{end}/{len(BLOB)}")
-            self.send_header("Content-Length", str(end - start + 1))
-            self.end_headers()
-            self.wfile.write(BLOB[start:end + 1])
-        else:
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(BLOB)))
-            if supports:
-                self.send_header("Accept-Ranges", "bytes")
-            self.end_headers()
-            self.wfile.write(BLOB)
+class ParallelDownloadTest(DownloadTestBase):
+    def test_assembles_exact_bytes_across_parts(self):
+        with blob_server() as url:
+            total, rangeable = tool._probe_download(self.session, url)
+            self.assertTrue(rangeable)
+            with tempfile.TemporaryDirectory() as scratch:
+                destination = pathlib.Path(scratch) / "out.jar"
+                with ui_progress() as progress:
+                    self.assertTrue(tool._parallel_download(self.session, url, total, destination, self.ui, progress, "test"))
+                self.assertEqual(destination.read_bytes(), BLOB)
 
-    def log_message(self, *args):
-        pass
+    def test_download_all_verifies_and_returns_path(self):
+        with blob_server() as url:
+            with tempfile.TemporaryDirectory() as scratch:
+                paths = tool.download_all(self.session, [(url, hashlib.sha1(BLOB).hexdigest(), "test jar")], pathlib.Path(scratch), self.ui)
+                self.assertEqual(paths[0].read_bytes(), BLOB)
+
+    def test_server_erroring_on_ranges_falls_back_cleanly(self):
+        with blob_server(fail_range=True) as url:
+            total, _ = tool._probe_download(self.session, url)
+            with tempfile.TemporaryDirectory() as scratch:
+                destination = pathlib.Path(scratch) / "out.jar"
+                with ui_progress() as progress:
+                    self.assertFalse(tool._parallel_download(self.session, url, total, destination, self.ui, progress, "test"))
 
 
-class DownloadServerTest(unittest.TestCase):
-    supports_range = True
+class StreamFallbackTest(DownloadTestBase):
+    def test_fallback_stream_recovers_full_body(self):
+        with blob_server(supports_range=False) as url:
+            total, rangeable = tool._probe_download(self.session, url)
+            self.assertFalse(rangeable)
+            with tempfile.TemporaryDirectory() as scratch:
+                destination = pathlib.Path(scratch) / "out.jar"
+                with ui_progress() as progress:
+                    self.assertFalse(tool._parallel_download(self.session, url, total, destination, self.ui, progress, "test"))
+                    tool._stream_download(self.session, url, destination, self.ui, progress, "test", total)
+                self.assertEqual(destination.read_bytes(), BLOB)
 
+
+class ProbeGuardTest(DownloadTestBase):
+    def test_gzip_content_disables_parallel(self):
+        with blob_server(content_encoding=True) as url:
+            total, rangeable = tool._probe_download(self.session, url)
+            self.assertFalse(rangeable)
+            self.assertEqual(total, len(BLOB))
+
+
+class StreamRetryTest(DownloadTestBase):
+    def test_truncated_bodies_are_retried(self):
+        with blob_server(supports_range=False, flaky_stream=2) as url:
+            with tempfile.TemporaryDirectory() as scratch:
+                destination = pathlib.Path(scratch) / "out.jar"
+                with ui_progress() as progress:
+                    tool._stream_download(self.session, url, destination, self.ui, progress, "test", len(BLOB))
+                self.assertEqual(destination.read_bytes(), BLOB)
+
+    def test_permanent_failure_raises_after_retries(self):
+        with blob_server(supports_range=False, flaky_stream=99) as url:
+            with tempfile.TemporaryDirectory() as scratch:
+                destination = pathlib.Path(scratch) / "out.jar"
+                with ui_progress() as progress:
+                    with self.assertRaisesRegex(tool.ToolError, "after 3 attempts"):
+                        tool._stream_download(self.session, url, destination, self.ui, progress, "test", len(BLOB))
+
+
+class MainTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.bundle = bundler_bytes()
+        cls.sha1 = hashlib.sha1(cls.bundle).hexdigest()
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), _BlobHandler)
-        cls.server.supports_range = cls.supports_range
+        cls.server.supports_range = True
+        cls.server.fail_range = False
+        cls.server.flaky_stream = 0
+        cls.server.blob = cls.bundle
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
-        cls.url = f"http://127.0.0.1:{cls.server.server_address[1]}/server.jar"
+        cls.url = f"http://127.0.0.1:{cls.server.server_address[1]}/objects/{cls.sha1}/server.jar"
 
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
         cls.server.server_close()
 
-    def setUp(self):
-        self.session = tool.http_session(tool.DEFAULT_UA)
-        self.ui = quiet_ui()
+    def run_main(self, argv):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = tool.main(argv)
+        return code, buffer.getvalue()
 
-    def total_and_rangeable(self):
-        return tool._probe_download(self.session, self.url)
-
-
-class ParallelDownloadTest(DownloadServerTest):
-    def test_assembles_exact_bytes_across_parts(self):
-        total, rangeable = self.total_and_rangeable()
-        self.assertTrue(rangeable)
+    def test_happy_path_installs_tables(self):
         with tempfile.TemporaryDirectory() as scratch:
-            destination = pathlib.Path(scratch) / "out.jar"
-            with ui_progress() as progress:
-                self.assertTrue(tool._parallel_download(self.session, self.url, total, destination, self.ui, progress, "test"))
-            self.assertEqual(destination.read_bytes(), BLOB)
+            repo = pathlib.Path(scratch)
+            code, _ = self.run_main(["--url", self.url, "--mc", "26.3", "--repo", str(repo)])
+            self.assertEqual(code, 0)
+            tables = sorted(path.name for path in (repo / "loot_tables").iterdir())
+            self.assertEqual(tables, sorted([f"{crop}.json" for crop in tool.CROPS] + ["version.json"]))
+            self.assertIn("apply_bonus", (repo / "loot_tables" / "wheat.json").read_text(encoding="utf-8"))
 
-    def test_download_all_verifies_and_returns_path(self):
+    def test_blocked_swap_reports_actionable_error(self):
         with tempfile.TemporaryDirectory() as scratch:
-            paths = tool.download_all(self.session, [(self.url, hashlib.sha1(BLOB).hexdigest(), "test jar")], pathlib.Path(scratch), self.ui)
-            self.assertEqual(paths[0].read_bytes(), BLOB)
+            repo = pathlib.Path(scratch)
+            (repo / "loot_tables").write_text("blocked", encoding="utf-8")
+            code, out = self.run_main(["--url", self.url, "--mc", "26.3", "--repo", str(repo)])
+            self.assertEqual(code, 1)
+            self.assertIn("could not install", out)
 
-
-class StreamFallbackTest(DownloadServerTest):
-    supports_range = False
-
-    def test_parallel_reports_unsupported_and_stream_recovers(self):
-        total, rangeable = self.total_and_rangeable()
-        self.assertFalse(rangeable)
+    def test_preflight_rejects_url_with_paper(self):
         with tempfile.TemporaryDirectory() as scratch:
-            destination = pathlib.Path(scratch) / "out.jar"
-            with ui_progress() as progress:
-                self.assertFalse(tool._parallel_download(self.session, self.url, total, destination, self.ui, progress, "test"))
-                tool._stream_download(self.session, self.url, destination, self.ui, progress, "test", total)
-            self.assertEqual(destination.read_bytes(), BLOB)
+            code, out = self.run_main(["--source", "paper", "--url", self.url, "--repo", scratch])
+            self.assertEqual(code, 1)
+            self.assertIn("--url only applies", out)
+
+    def test_preflight_rejects_sha_without_url(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            code, out = self.run_main(["--sha", "a" * 40, "--repo", scratch])
+            self.assertEqual(code, 1)
+            self.assertIn("--sha only applies", out)
+
+    def test_preflight_rejects_missing_repo(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            missing = pathlib.Path(scratch) / "nope"
+            code, out = self.run_main(["--repo", str(missing)])
+            self.assertEqual(code, 1)
+            self.assertIn("repository path does not exist", out)
 
 
 if __name__ == "__main__":

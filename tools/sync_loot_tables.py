@@ -31,7 +31,7 @@ CHANNELS = ("STABLE", "DEFAULT", "EXPERIMENTAL")
 DEFAULT_UA = "ReplenishPlusPlus-loot-sync/1.0 (+https://github.com/Mitra-88/ReplenishPlusPlus)"
 CHUNK = 1 << 20
 DOWNLOAD_THREADS = 8
-PART_RETRIES = 3
+RETRIES = 3
 BACKOFF_SECONDS = 0.5
 CONNECT_TIMEOUT = 10
 READ_TIMEOUT = 30
@@ -156,13 +156,13 @@ def _probe_download(session, url):
     with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT)) as response:
         response.raise_for_status()
         total = int(response.headers.get("Content-Length") or 0)
-        rangeable = response.headers.get("Accept-Ranges", "") == "bytes"
+        rangeable = response.headers.get("Accept-Ranges", "") == "bytes" and not response.headers.get("Content-Encoding")
     return total, rangeable
 
 
 def _fetch_part(session, url, start, end, file, lock, progress, task, part_index):
     headers = {"Range": f"bytes={start}-{end}", "Accept-Encoding": "identity"}
-    for attempt in range(PART_RETRIES):
+    for attempt in range(RETRIES):
         try:
             with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), headers=headers) as response:
                 if response.status_code != 206:
@@ -181,8 +181,8 @@ def _fetch_part(session, url, start, end, file, lock, progress, task, part_index
         except _NotRangeable:
             raise
         except (requests.exceptions.RequestException, IOError) as error:
-            if attempt == PART_RETRIES - 1:
-                raise ToolError(f"part {part_index} failed after {PART_RETRIES} attempts: {error}") from error
+            if attempt == RETRIES - 1:
+                raise ToolError(f"part {part_index} failed after {RETRIES} attempts: {error}") from error
             time.sleep(BACKOFF_SECONDS * 2 ** attempt)
 
 
@@ -209,7 +209,7 @@ def _parallel_download(session, url, total, destination, ui, progress, label):
                         pending.cancel()
                 except concurrent.futures.CancelledError:
                     pass
-                except ToolError as error:
+                except Exception as error:
                     failure = failure or error
     progress.remove_task(task)
     if range_unsupported:
@@ -220,16 +220,28 @@ def _parallel_download(session, url, total, destination, ui, progress, label):
 
 
 def _stream_download(session, url, destination, ui, progress, label, total):
-    with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), headers={"Accept-Encoding": "identity"}) as response:
-        response.raise_for_status()
-        task = progress.add_task(label, total=total or None)
-        done = 0
-        with open(destination, "wb") as target:
-            for chunk in response.iter_content(chunk_size=CHUNK):
-                target.write(chunk)
-                done += len(chunk)
-                progress.update(task, completed=done)
-    progress.remove_task(task)
+    last = None
+    for attempt in range(RETRIES):
+        task = None
+        try:
+            with session.get(url, stream=True, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT), headers={"Accept-Encoding": "identity"}) as response:
+                response.raise_for_status()
+                task = progress.add_task(label, total=total or None)
+                done = 0
+                with open(destination, "wb") as target:
+                    for chunk in response.iter_content(chunk_size=CHUNK):
+                        target.write(chunk)
+                        done += len(chunk)
+                        progress.update(task, completed=done)
+                return
+        except requests.exceptions.RequestException as error:
+            last = error
+            if attempt < RETRIES - 1:
+                time.sleep(BACKOFF_SECONDS * 2 ** attempt)
+        finally:
+            if task is not None:
+                progress.remove_task(task)
+    raise ToolError(f"download failed after {RETRIES} attempts: {http_error_text(url, last)}")
 
 
 def download_all(session, downloads, scratch, ui):
@@ -266,17 +278,20 @@ def pom_version(repo):
 def resolve_vanilla_manifest(mc, session, ui):
     with ui.spin("querying Mojang version manifest"):
         manifest = http_json(MANIFEST_URL, session)
-    entry = next((v for v in manifest.get("versions", []) if v.get("id") == mc), None)
+    versions = manifest.get("versions")
+    if not isinstance(versions, list):
+        raise ToolError("the Mojang version manifest has an unexpected shape, their API changed upstream")
+    entry = next((v for v in versions if isinstance(v, dict) and v.get("id") == mc), None)
     if entry is None:
-        latest = ", ".join(v["id"] for v in manifest.get("versions", [])[:5])
+        latest = ", ".join(str(v.get("id")) for v in versions[:5] if isinstance(v, dict))
         raise ToolError(f"Minecraft {mc} is not in the version manifest, newest releases are: {latest}")
     with ui.spin(f"resolving the server jar for Minecraft {mc}"):
-        details = http_json(entry["url"], session)
-    try:
-        server = details["downloads"]["server"]
-        return server["url"], server["sha1"]
-    except KeyError as error:
-        raise ToolError(f"the manifest entry for {mc} has no server jar download") from error
+        details = http_json(entry.get("url"), session) if isinstance(entry.get("url"), str) else None
+    downloads = details.get("downloads") if isinstance(details, dict) else None
+    server = downloads.get("server") if isinstance(downloads, dict) else None
+    if not isinstance(server, dict) or not server.get("url") or not server.get("sha1"):
+        raise ToolError(f"the manifest entry for {mc} has no server jar download, their API changed upstream")
+    return server["url"], server["sha1"]
 
 
 def resolve_vanilla(args, mc, session, ui):
@@ -300,9 +315,8 @@ def _sha_from_url(url):
 
 def _version_slugs(project):
     raw = project.get("versions") or {}
-    if isinstance(raw, dict):
-        return [slug for family in raw.values() for slug in family]
-    return [slug for family in raw for slug in (family if isinstance(family, list) else [family])]
+    families = raw.values() if isinstance(raw, dict) else raw
+    return [slug for family in families for slug in (family if isinstance(family, list) else [family])]
 
 
 def _select_build(builds):
@@ -351,16 +365,16 @@ def resolve_paper(args, session, ui):
     return version, server["url"], sha
 
 
-def resolve_downloads(args, session, ui):
+def resolve_downloads(args, session, ui, repo):
     if args.source == "vanilla":
-        mc = args.mc or pom_version(args.repo.resolve())
+        mc = args.mc or pom_version(repo)
         ui.step(1, f"source: {ui.cyan('vanilla')}, target Minecraft {ui.cyan(mc)}")
         url, sha = resolve_vanilla(args, mc, session, ui)
         return mc, [(url, sha, f"Minecraft {mc} server jar")]
     ui.step(1, f"source: {ui.cyan('PaperMC Fill API')}")
     version, paper_url, paper_sha = resolve_paper(args, session, ui)
     mc = args.mc or version
-    pom = pom_version(args.repo.resolve()) if (args.repo.resolve() / "pom.xml").is_file() else None
+    pom = pom_version(repo) if repo.joinpath("pom.xml").is_file() else None
     if pom and pom != version:
         ui.warn(f"tables now describe MC {version} but the pom targets {pom}, consider --mc {pom}")
     ui.info("the Paper jar is a patcher and carries no game data, the loot tables come from the matching vanilla jar")
@@ -387,7 +401,10 @@ def extract_tables(jar_path, mc, staging, ui):
         ui.ok(f"nested vanilla jar: {nested_path}")
         with bundler.open(entry) as raw, zipfile.ZipFile(raw) as vanilla:
             inner = {name.replace("\\", "/"): name for name in vanilla.namelist()}
-            version_info = json.loads(vanilla.read(inner["version.json"]))
+            version_key = inner.get("version.json")
+            if not version_key:
+                raise ToolError("the vanilla jar has no version.json, the data layout changed upstream")
+            version_info = json.loads(vanilla.read(version_key))
             jar_version = version_info.get("name") or version_info.get("id")
             if jar_version != mc:
                 raise ToolError(
@@ -405,7 +422,7 @@ def extract_tables(jar_path, mc, staging, ui):
                     raise ToolError(f"{key} in the vanilla jar is empty")
                 (staging / f"{crop}.json").write_bytes(data)
                 ui.ok(f"{crop}.json ({len(data)} bytes)")
-            version_data = vanilla.read(inner["version.json"])
+            version_data = vanilla.read(version_key)
             (staging / "version.json").write_bytes(version_data)
             ui.ok(f"version.json ({len(version_data)} bytes)")
     wheat = (staging / "wheat.json").read_text(encoding="utf-8")
@@ -475,8 +492,15 @@ def main(argv):
     session = http_session(user_agent)
 
     try:
+        if args.source == "paper" and args.url:
+            raise ToolError("--url only applies to --source vanilla")
+        if args.sha and not args.url:
+            raise ToolError("--sha only applies together with --url")
+        if not repo.is_dir():
+            raise ToolError(f"repository path does not exist: {repo}")
+
         ui.banner(repo)
-        mc, downloads = resolve_downloads(args, session, ui)
+        mc, downloads = resolve_downloads(args, session, ui, repo)
 
         ui.step(2, "downloading and verifying")
         with tempfile.TemporaryDirectory(prefix="rpp-loot-") as scratch:
@@ -494,9 +518,12 @@ def main(argv):
                 if not path.is_file() or path.stat().st_size == 0:
                     raise ToolError(f"{path} is missing or empty after extraction")
             target = repo / "loot_tables"
-            if target.exists():
-                shutil.rmtree(target)
-            shutil.move(str(staging), str(target))
+            try:
+                if target.exists():
+                    shutil.rmtree(target)
+                shutil.move(str(staging), str(target))
+            except OSError as error:
+                raise ToolError(f"could not install loot_tables/ into {target}: {error}, is a file there locked by another process?") from error
             ui.ok(f"loot_tables/ holds {len(CROPS)} tables + version.json")
 
         ui.step(5, "verifying against the repository")
@@ -512,6 +539,12 @@ def main(argv):
         ui.line()
         ui.line(ui.yellow("interrupted, nothing half-written"))
         return 130
+    except BrokenPipeError:
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        except OSError:
+            pass
+        return 1
     except Exception as error:
         ui.line()
         if args.debug:
