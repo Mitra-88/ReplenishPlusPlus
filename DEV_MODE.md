@@ -1,68 +1,71 @@
-# DEV_MODE: the /rpp dev testing sandbox
+# /rpp dev
 
-Dev mode is the op-only testing mode. It's deliberately invisible: no menu entry,
-no help screen, nothing in `/rpp status`, nothing in the `/rpp reload` output, no
-section in `config.yml`, nothing in the README, nothing in the permission list.
-This file is the only documentation, it's not shipped to anyone.
+Op-only test sandbox for farming. Turn it on, break crops at a stupid speed,
+watch the numbers, turn it off.
 
-## The basics
+It's invisible on purpose: no menu entry, nothing in `/rpp status`, nothing in
+`/rpp reload`, no `dev:` section in `config.yml`, no README row, no permission
+listing. This file is the only doc and it doesn't leave your machine.
 
-- `/rpp dev` toggles it just for you (permission `replenishplusplus.dev`, op only).
-- Per-player and session-only: it lives in memory, so relogging turns it off.
-- With nobody in dev mode, the plugin's entire dev cost is two `isEmpty()` checks
-  per harvest and one boolean per ice event. It's kept outside the harvest
-  pipeline on purpose.
-- All dev messages are hardcoded (console + dev players), they're not in
-  `en_us.yml` because dev mode isn't player-facing.
+## How it behaves
 
-## The six features
+- `/rpp dev` toggles it, just for you. Permission `replenishplusplus.dev`, so op.
+- Lives in memory only. Relog and it's off. Nothing is saved anywhere.
+- Nobody in dev mode = the plugin does no dev work at all, just a couple of
+  emptiness checks per harvest and one boolean per ice event.
+- All dev text is hardcoded. It never touches `en_us.yml`.
 
-| Config key | Default | What it does |
+## What turns on
+
+| Key | Default | What it does |
 | --- | --- | --- |
-| `fast-water` | on | Water behaves like dry land. Implemented as a transient +1.0 `WATER_MOVEMENT_EFFICIENCY` attribute (≈ Depth Strider III) applied on enable, removed on disable/shutdown; a relog kills it by itself. |
-| `no-ice` | on | Ice can't form anywhere on the server while anyone has dev mode on (also blocks Frost Walker, same event family, covered for free). This one is world-level by nature, so it affects everyone. |
-| `inventory-clear` | on | Stops your inventory from ever filling while farming. Every second: if you have 4+ free slots, nothing happens; otherwise everything in the 36 storage slots is deleted except hoes/axes and 64 units *total* of the current crop's seed (excess seed stacks get trimmed). The harvested crops themselves are deleted too, only replant material survives. Armor and offhand untouched. Deletes quietly, never drops. |
-| `full-age-replant` | on | Crops you break replant fully grown instead of fresh, mature and immature alike, so a farm that was replanted young before you enabled dev mode normalizes instantly. Seed rules untouched: immature harvests still give no drops and eat no seed. |
-| `harvest-counter` | on | `/spark profiler` windows count your harvests and print a report when the profiler stops (workflow below). |
-| `fast-growth` | on | Crops planted by anyone grow instantly, and enabling dev mode fully grows the 25×25×5 area around you once. There is no periodic growth work at all, replants are already full-age and planted crops are instant, so nothing ever waits to grow. Crops grown young by other means (farmer villagers) stay vanilla until you re-toggle dev mode. |
+| `fast-water` | on | Water acts like dry land. A transient +1.0 water movement attribute (roughly Depth Strider III) applied on enable, removed on disable. Dying keeps it working now, respawn re-applies it automatically. A relog drops it, since the whole state is memory-only. |
+| `no-ice` | on | No ice forms anywhere while anyone has dev on, Frost Walker included. World-wide by nature, so it affects everyone, not just you. |
+| `inventory-clear` | on | Every second: if you have 4 or more free slots it does nothing, otherwise it wipes the 36 storage slots except hoes/axes and up to 64 seeds of whatever you farmed last. Harvested crops get deleted too, so only replant material survives. Armor and offhand are never touched. Deletes quietly, never drops items. Runs even while you're dead or spectating, that's on purpose. |
+| `full-age-replant` | on | Crops you break replant fully grown, young ones included, so a half-grown farm normalizes the moment you harvest it. Seed rules don't change: immature crops still drop nothing and eat no seed. |
+| `harvest-counter` | on | Spark profiler windows get counted and reported. Workflow below. |
+| `fast-growth` | on | Crops placed by anyone pop in fully grown, and enabling dev fully grows the 25×25×5 area around you once. No growth task runs after that. Crops grown young by villagers stay vanilla until you re-toggle. |
 
-## Configuring it
-
-No `dev:` section ships in `config.yml` on purpose, admins aren't meant to see
-it. The keys still work if you hand-add them:
+All six default to on. To turn one off, add a `dev:` section to config.yml by
+hand (it never ships there), then `/rpp reload`:
 
 ```yaml
 dev:
   inventory-clear: false
 ```
 
-then run `/rpp reload`. Every key defaults to true; only keys you actually list
-are read.
+## The harvest counter
 
-## Spark counter workflow
-
-1. `/rpp dev`, you get the ENABLED message.
-2. `/spark profiler start` (add a number, like `/spark profiler start 60`, and the
-   profiler stops itself after that many seconds), the plugin snapshots your session
-   totals and tells you "Harvest tracking started, you had N crops before this window".
+1. `/rpp dev`
+2. `/spark profiler start`, or `start 60` to auto-stop after 60 seconds.
+   You get a "Harvest tracking started" line with your pre-window total.
 3. Farm.
-4. `/spark profiler stop`, or just wait out the timeout: the **Harvest Report** prints
-   to you, the console, and every dev player. It shows the window length, crops
-   harvested with a crops-per-second rate, a per-crop breakdown, the harvesting
-   tool(s) with their tier, enchantments, and harvest count, how many items the
-   auto-clear deleted in that window, and your session totals. The report always
-   follows whoever ran the profiler, so you get it even if you toggled dev mode off
-   before stopping.
+4. `/spark profiler stop`, or let the timeout run out. The Harvest Report goes
+   to you, the console, and anyone else in dev mode: window length, crops and
+   crops/sec, a per-crop breakdown, the tool you harvested with and its
+   enchants, items the auto-clear deleted, and session totals.
 
-Bare `/spark profiler` and flag forms like `/spark profiler --memory true` count
-as toggles; anything else spark-related is ignored. Works from the console too.
+Things worth knowing:
 
-## Performance notes
+- The report follows whoever ran the profiler. Turn dev off before stopping and
+  you still get it.
+- Bare `/spark profiler` and flag forms like `--memory true` count as toggles.
+  Works from the console too.
+- Timeouts cap at 24 hours. Re-running `start 60` mid-window pushes the
+  auto-stop back without resetting the numbers.
+- Any player typing spark profiler commands moves the window. There's no
+  permission check on the counting itself, and it only ever shows aggregate
+  numbers, but it's worth knowing on a server with strangers.
+- Stopping requires the counter still enabled. If you set
+  `harvest-counter: false` and reload mid-window, a manual stop won't print a
+  report until you turn it back on. A timed window still closes on its own.
 
-- Built to be invisible in spark: the benchmark in `BENCHMARK.MD` had every
-  feature running *during* the profiling window and the dev frames rounded to
-  0.00%.
-- The only periodic work is the inventory-clear task, which exists only while a
-  dev player is online and is an allocation-free 36-slot scan.
-- The code is sandbox by design, speed is the acceptance bar, don't
-  "productionize" it.
+## Performance
+
+- Nobody in dev mode: no dev code runs. Two emptiness checks per harvest and
+  one boolean per ice event, that's the whole cost.
+- Someone in dev mode: the clear task scans 36 slots once a second,
+  allocation-free. The latest benchmark had dev fully active during a 5 minute
+  profile and it measured 0.01% of the server thread. Numbers in BENCHMARK.md.
+
+It's sandbox code. Speed is the point, don't productionize it.
