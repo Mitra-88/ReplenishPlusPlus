@@ -40,7 +40,7 @@ public record ConfigCache(
             boolean harvestCounter,
             boolean fastGrowth) {}
 
-    public static final int DEFAULT_REPLANT_DELAY_TICKS = 1;
+    public static final int DEFAULT_REPLANT_DELAY_TICKS = 3;
     public static final int DEFAULT_MAX_REPLANTS_PER_TICK = 1024;
     public static final int DEFAULT_MAX_REPLANTS_QUEUED = 4096;
     public static final int MIN_REPLANTS_PER_TICK = 256;

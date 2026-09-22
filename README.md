@@ -90,7 +90,7 @@ requirePlayerSeed: true
 directPickup: true
 sneakToBypass: true
 messageStyle: CHAT
-replantDelayTicks: 1
+replantDelayTicks: 3
 maxReplantsPerTick: 1024
 maxReplantsQueued: 4096
 checkUpdates: true
@@ -133,7 +133,7 @@ messageStyle: CHAT
 # Each replant lands on a random tick between 1 and this number, which spreads
 # the replant work evenly instead of batching it, so bigger values stay smooth.
 # (1 to 8191)
-replantDelayTicks: 1
+replantDelayTicks: 3
 
 # Max crops replanted in a single tick, so nobody can lag the server by
 # harvesting a giant farm all at once. (Minimum 256)

@@ -53,7 +53,11 @@ that must stay. The seed path (`SeedIndex.consume`) no longer registers above
   fortune-only tool gate that was removed right after this capture; with the
   gate gone (transcribed tables sample for every tool, one `getEnchantmentLevel`
   read instead of an enchantment-map copy) the decide path should drop further.
-  Re-run before drawing conclusions.
+- The capture also ran with a fixed `replantDelayTicks: 5`, which batched all
+  replants from 5 consecutive ticks into one tick. The delay is now a random
+  1..N window (default 3), which flattens those per-tick replant spikes; total
+  replant work is unchanged, the peak per tick is what drops. Re-run before
+  drawing conclusions.
 - Dev mode's whole footprint in the tree (`clearTick`, the report announce)
   rounds to 0.01% while fully active.
 - MSPT headroom: the median tick used 1.12ms of the 50ms budget (2.2%). The
