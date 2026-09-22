@@ -71,7 +71,7 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         sendConsole("<gradient:#FFD700:#FF9D00>Replants per tick</gradient> <dark_gray>· <white>" + config.maxReplantsPerTick());
         sendConsole("<gradient:#FFD700:#FF9D00>Queue capacity</gradient> <dark_gray>· <white>" + config.maxReplantsQueued());
         int delayTicks = config.replantDelayTicks();
-        sendConsole("<gradient:#FFD700:#FF9D00>Replant delay</gradient> <dark_gray>· <white>" + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
+        sendConsole("<gradient:#FFD700:#FF9D00>Replant delay</gradient> <dark_gray>· <white>up to " + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
         sendConsole("<gradient:#FFD700:#FF9D00>Running version</gradient> <dark_gray>· <white>v" + getPluginMeta().getVersion());
 
         updateChecker = new UpdateChecker(this, config.checkUpdates());

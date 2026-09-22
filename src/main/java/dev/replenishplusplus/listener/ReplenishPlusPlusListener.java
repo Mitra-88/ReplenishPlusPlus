@@ -83,7 +83,9 @@ public final class ReplenishPlusPlusListener implements Listener {
         devModeManager.onHarvest(player.getUniqueId(), plan.crop(), plan.mature(), plan.tool());
 
         if (replant) {
-            plugin.enqueueReplant(event.getBlock(), plan.config().replantDelayTicks(), plan.replantedAge(),
+            int maxDelay = plan.config().replantDelayTicks();
+            int delay = 1 + ThreadLocalRandom.current().nextInt(maxDelay);
+            plugin.enqueueReplant(event.getBlock(), delay, plan.replantedAge(),
                     plan.cocoaFacing(), player.getUniqueId(), plan.seedConsumed());
         }
         distributeDrops(player, event.getBlock(), plan.config(), plan.drops());

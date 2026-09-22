@@ -129,7 +129,7 @@ public final class ReplenishPlusPlusCommand {
         var sb = new StringBuilder();
         sb.append("\n<dark_gray>      [ <gradient:#FFD700:#FF9D00><bold>Config Reloaded</bold></gradient> <dark_gray>]\n\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Replanting: ").append(onOff(cfg.enabled())).append("\n");
-        sb.append("  ").append(Messages.DOT).append("<gray>Replant delay: <white>").append(cfg.replantDelayTicks()).append(" tick(s)\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replant delay: up to <white>").append(cfg.replantDelayTicks()).append(" <gray>tick(s)\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Replants per tick: <white>").append(cfg.maxReplantsPerTick()).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Queue capacity: <white>").append(cfg.maxReplantsQueued()).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Give drops directly to player: ").append(yesNo(cfg.directPickup(), "No, drop on ground")).append("\n");
@@ -181,7 +181,7 @@ public final class ReplenishPlusPlusCommand {
                 : "  <red>✘ <white>Sneaking doesn't skip\n\n");
 
         sb.append("<gradient:#FFD700:#FF9D00><bold>Timing</bold></gradient>\n");
-        sb.append("  ").append(Messages.DOT).append("<gray>Replants after <white>").append(cfg.replantDelayTicks()).append(" <gray>tick(s)\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Replants after <white>").append(cfg.replantDelayTicks()).append(" <gray>tick(s) at most\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Up to <white>").append(cfg.maxReplantsPerTick()).append(" <gray>replants per tick\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Queue holds <white>").append(cfg.maxReplantsQueued()).append("\n\n");
 
