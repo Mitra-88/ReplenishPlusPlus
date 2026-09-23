@@ -16,6 +16,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -87,6 +88,11 @@ public final class PadListener implements Listener {
         if (pad == null || event.isCancelled()) return;
         pads.place(pad);
         send(event.getPlayer(), "pad.placed");
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityTeleport(EntityTeleportEvent event) {
+        if (pads.isPadDisplay(event.getEntity())) event.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)

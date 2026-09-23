@@ -159,6 +159,11 @@ public final class TeleportPadManager {
         }
     }
 
+    public boolean isPadDisplay(Entity entity) {
+        return entity instanceof ItemDisplay
+                && entity.getPersistentDataContainer().has(displayKey, PersistentDataType.STRING);
+    }
+
     private void refreshDisplay(TeleportPad pad) {
         removeDisplay(pad.key());
         spawnDisplay(pad);
