@@ -147,6 +147,14 @@ public final class DevModeManager {
         return anyActive() && plugin.getConfigCache().dev().noIce();
     }
 
+    public boolean noTrampleActive() {
+        return anyActive() && plugin.getConfigCache().dev().noTrample();
+    }
+
+    public boolean isDevTrampler(Player player) {
+        return noTrampleActive() && enabled.contains(player.getUniqueId());
+    }
+
     public void onHarvest(UUID playerId, CropType crop, boolean mature, ItemStack tool) {
         if (enabled.isEmpty() || !enabled.contains(playerId)) return;
         lastCrop.put(playerId, crop);

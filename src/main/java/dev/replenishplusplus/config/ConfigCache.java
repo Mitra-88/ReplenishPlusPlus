@@ -37,7 +37,8 @@ public record ConfigCache(
             boolean inventoryClear,
             boolean fullAgeReplant,
             boolean harvestCounter,
-            boolean fastGrowth) {}
+            boolean fastGrowth,
+            boolean noTrample) {}
 
     public static final int DEFAULT_REPLANT_DELAY_TICKS = 3;
     public static final int MIN_REPLANT_DELAY_TICKS = 1;
@@ -108,7 +109,8 @@ public record ConfigCache(
                 ConfigReader.boolValue(config, "dev.inventory-clear", true, issues),
                 ConfigReader.boolValue(config, "dev.full-age-replant", true, issues),
                 ConfigReader.boolValue(config, "dev.harvest-counter", true, issues),
-                ConfigReader.boolValue(config, "dev.fast-growth", true, issues));
+                ConfigReader.boolValue(config, "dev.fast-growth", true, issues),
+                ConfigReader.boolValue(config, "dev.no-trample", true, issues));
     }
 
     private static int clampAtLeast(int value, int min, String path, List<String> issues) {

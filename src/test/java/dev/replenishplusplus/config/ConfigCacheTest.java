@@ -15,7 +15,7 @@ class ConfigCacheTest {
         return new ConfigCache(true, true, true, true, MessageStyle.CHAT,
                 1, 1024, 4096, true, disabled,
                 null, null, null, null, null,
-                new ConfigCache.DevOptions(true, true, true, true, true, true));
+                new ConfigCache.DevOptions(true, true, true, true, true, true, true));
     }
 
     @Test
