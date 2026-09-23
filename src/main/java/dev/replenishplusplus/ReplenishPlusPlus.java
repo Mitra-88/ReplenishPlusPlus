@@ -1,6 +1,7 @@
 package dev.replenishplusplus;
 
 import dev.replenishplusplus.command.ReplenishPlusPlusCommand;
+import dev.replenishplusplus.compat.PluginConflicts;
 import dev.replenishplusplus.config.ConfigCache;
 import dev.replenishplusplus.config.Messages;
 import dev.replenishplusplus.config.PlayerToggleManager;
@@ -21,6 +22,7 @@ import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -77,6 +79,16 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         int delayTicks = config.replantDelayTicks();
         sendConsole("<gradient:#FFD700:#FF9D00>Replant delay</gradient> <dark_gray>· <white>up to " + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
         sendConsole("<gradient:#FFD700:#FF9D00>Running version</gradient> <dark_gray>· <white>v" + getPluginMeta().getVersion());
+
+        List<String> installed = new ArrayList<>();
+        for (Plugin plugin : getServer().getPluginManager().getPlugins()) {
+            installed.add(plugin.getName());
+        }
+        List<String> conflicts = PluginConflicts.scan(PluginConflicts.KNOWN, installed);
+        if (!conflicts.isEmpty()) {
+            sendConsole("<yellow>Known incompatible plugins detected: <white>" + String.join(", ", conflicts)
+                    + " <dark_gray>· <gray>reported to break Replenish++ features, staying enabled");
+        }
 
         updateChecker = new UpdateChecker(this, config.checkUpdates());
 
