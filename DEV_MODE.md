@@ -70,6 +70,12 @@ contains the world, `server.properties`, and the plugin config folder. Drop
 them into a fresh Paper 26.3 server, add the plugin jar, start it, and the
 numbers in BENCHMARK.md are reproducible.
 
+The farm sits at `-75 5 -91`. After loading in, teleport to it with
+`/minecraft:tp @e -75 5 -91`. Heads up: `@e` grabs every entity in range,
+including the wool pad displays, so they fly over to the farm with you. It's
+harmless, they're non-persistent and a restart or chunk reload snaps them back
+onto their pads.
+
 ## Performance
 
 - Nobody in dev mode: no dev code runs. Two emptiness checks per harvest and
