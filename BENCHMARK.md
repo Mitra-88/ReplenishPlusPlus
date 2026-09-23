@@ -1,18 +1,17 @@
 # BENCHMARK: ReplenishPlusPlus under load
 
-Measured live with spark during a 4m59s window of non-stop wheat farming, dev mode
-enabled (full-age replants, instant growth, auto inventory clear), auto-farm mod
-driving a Netherite Hoe (Efficiency V, Fortune III, Unbreaking III), randomized
-replant delay window.
+Measured live with spark during a 5min window of non-stop wheat farming, dev mode
+enabled (full-age replants, instant growth, auto inventory clear)
+using a Hoe (Efficiency V, Fortune III, Unbreaking III).
 
 ## Setup
 
-| | |
-| --- | --- |
-| Server | Paper 26.3-35-main@dd9d103 (2026-09-22T19:19:23Z), Minecraft 26.3, Java 25 |
-| Plugin build | `ReplenishPlusPlus-7.0.0+build.240-de522f8-mc26.3-papermc` |
-| Plugins | AspectoftheVoid-3.0.0-mc26.2 · EssentialsX-2.22.1-dev+24-49a2f10 · ReplenishPlusPlus · spark-1.10.187-bukkit · worldedit-bukkit-7.4.6-beta-01 |
-| Memory | 2048M heap, ZGC |
+|              |                                                                                                                                               |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server       | Paper 26.3-35-main@dd9d103 (2026-09-22T19:19:23Z), Minecraft 26.3, Java 25                                                                    |
+| Plugin build | `ReplenishPlusPlus-7.0.0+build.240-de522f8-mc26.3-papermc`                                                                                    |
+| Plugins      | AspectoftheVoid-3.0.0-mc26.2 · EssentialsX-2.22.1-dev+24-49a2f10 · ReplenishPlusPlus · spark-1.10.187-bukkit · worldedit-bukkit-7.4.6-beta-01 |
+| Memory       | 2048M heap, ZGC                                                                                                                               |
 
 <details>
 <summary>Full startup command</summary>
@@ -25,13 +24,13 @@ java -Xms2048M -Xmx2048M --add-modules jdk.incubator.vector -Dpaper.preferSparkP
 
 ## Results
 
-| Metric | Value |
-| --- | --- |
-| Crops harvested | **5,993** in 4m59s (**19.99/sec**, sustained, wheat only) |
-| Crops auto-cleared | 25,079 items |
-| TPS | 20.00 (1m) · 20.00 (5m) · 19.99 (15m) |
-| MSPT | min 8.48 · **median 9.62** · 95%ile 11.4 · max 26.8 |
-| Process CPU | 2.53% (1m) · 2.67% (15m) |
+| Metric             | Value                                                     |
+| ------------------ | --------------------------------------------------------- |
+| Crops harvested    | **5,993** in 4m59s (**19.99/sec**, sustained, wheat only) |
+| Crops auto-cleared | 25,079 items                                              |
+| TPS                | 20.00 (1m) · 20.00 (5m) · 19.99 (15m)                     |
+| MSPT               | min 8.48 · **median 9.62** · 95%ile 11.4 · max 26.8       |
+| Process CPU        | 2.53% (1m) · 2.67% (15m)                                  |
 
 The plugin's own Harvest Report matched the profiler exactly (5,993 crops,
 25,079 cleared) and identified the tool: Netherite Hoe (Efficiency V, Fortune
@@ -39,19 +38,18 @@ III, Unbreaking III).
 
 ## What it cost the server thread
 
-The entire plugin accounted for **0.16%** of the server thread (previous
-capture: 0.28%, so **43% lighter**).
+The entire plugin accounted for **0.16%** of the server thread.
 
-| Path | Share | Previous |
-| --- | --- | --- |
-| Break commit phase (`onBlockBreakCommit`) | 0.07% | 0.10% |
-| Replant queue (`tick` → `replant` → `setBlockData`) | 0.05% | 0.11% |
-| Break decide phase (`prepareHarvest`) | 0.02% | 0.04% |
-| Neighbor/client updates (`notifyAndUpdatePhysics`) | 0.01% | 0.03% |
-| Chunk-loaded memo (`isChunkLoadedCached`) | 0.01% | 0.03% |
-| Teleport pads (`onMove`) | 0.01% | 0.01% |
-| Dev mode (`clearTick`, report) | 0.01% | 0.01% |
-| Seed path (`hasSeed`, `consume`) | 0.00% | 0.00% |
+| Path                                                | Share |
+| --------------------------------------------------- | ----- |
+| Break commit phase (`onBlockBreakCommit`)           | 0.07% |
+| Replant queue (`tick` → `replant` → `setBlockData`) | 0.05% |
+| Break decide phase (`prepareHarvest`)               | 0.02% |
+| Neighbor/client updates (`notifyAndUpdatePhysics`)  | 0.01% |
+| Chunk-loaded memo (`isChunkLoadedCached`)           | 0.01% |
+| Teleport pads (`onMove`)                            | 0.01% |
+| Dev mode (`clearTick`, report)                      | 0.01% |
+| Seed path (`hasSeed`, `consume`)                    | 0.00% |
 
 Inside the commit frame, the drop handoff is most of it (`addItem` 0.04%) and
 the pickup sound packet is another 0.01%. The decide phase is where the
@@ -59,28 +57,18 @@ transcribed tables show up: `VanillaCropDrops.counts` and `binomialBonus` are
 in the tree at 0.00%, the vanilla loot-table + enchantment-map machinery is
 gone, and the only tool read left is `getEnchantmentLevel` at 0.00%.
 
-## About the MSPT numbers in this capture
-
-This environment ran a much heavier baseline tick than the earlier capture
-(median 9.6ms vs 1.1ms, min 8.5ms) with TPS still pinned at 20. The plugin's
-absolute work was the same 5,993 crops, so its share of the thread looks
-smaller against a heavier tick, not because it did less. The heavier baseline
-is server/world side, not the plugin, and it is also why the max tick (26.8ms)
-and CPU percentages read higher here. Per-player comparisons stay valid; do
-not compare raw MSPT between the two captures.
-
 ## How many players can it handle?
 
 One player farming flat-out costs **0.16% of one server thread**, about
 20 crops/sec. Scaling is linear while everyone farms non-stop, which never
 happens on a real server, so treat these as ceilings:
 
-| Concurrent farmers | Plugin share of one thread | Crops/sec | Zone |
-| --- | --- | --- | --- |
-| ~30 | ~5% | ~600 | Safe |
-| ~75 | ~12% | ~1,500 | Moderate |
-| ~150 | ~24% | ~3,000 | Caution |
-| ~1,000+ | safety cap engaged | ~20,480 | The valve |
+| Concurrent farmers | Plugin share of one thread | Crops/sec | Zone      |
+| ------------------ | -------------------------- | --------- | --------- |
+| ~30                | ~5%                        | ~600      | Safe      |
+| ~75                | ~12%                       | ~1,500    | Moderate  |
+| ~150               | ~24%                       | ~3,000    | Caution   |
+| ~1,000+            | safety cap engaged         | ~20,480   | The valve |
 
 Notes on the zones:
 
@@ -95,9 +83,3 @@ Notes on the zones:
   eventually dropped with loud throttled warnings instead of lagging the
   server. A consumed seed is refunded whenever a replant itself fails; a
   queue-full drop stays silent by design.
-
-The honest caveat: this extrapolates one measured player linearly. Real
-servers hit vanilla limits (block ticks, item entities, network) long before
-the plugin does, and this capture ran on a tick that was already busy for
-non-plugin reasons. The plugin stopped being a plausible bottleneck somewhere
-around the second capture.

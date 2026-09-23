@@ -24,7 +24,7 @@ If you ever farmed on Hypixel SkyBlock, you already know the idea, it's Replenis
 1. Grab the jar from [Releases](https://github.com/Mitra-88/ReplenishPlusPlus/releases) or the Actions tab if you like living on dev builds
 2. Drop it in `plugins/`
 3. Start the server
-4. Poke at `plugins/ReplenishPlusPlus/config.yml` if you want (defaults are fine though)
+4. (Optional) Customize `plugins/ReplenishPlusPlus/config.yml`, the default settings work fine as-is.
 
 ## What happens by default (no config changes)
 

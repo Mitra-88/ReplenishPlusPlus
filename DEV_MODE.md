@@ -5,7 +5,7 @@ watch the numbers, turn it off.
 
 It's invisible on purpose: no menu entry, nothing in `/rpp status`, nothing in
 `/rpp reload`, no `dev:` section in `config.yml`, no README row, no permission
-listing. This file is the only doc and it doesn't leave your machine.
+listing. This file is the only doc, and it doesn't leave your machine.
 
 ## How it behaves
 
@@ -17,14 +17,14 @@ listing. This file is the only doc and it doesn't leave your machine.
 
 ## What turns on
 
-| Key | Default | What it does |
-| --- | --- | --- |
-| `fast-water` | on | Water acts like dry land. A transient +1.0 water movement attribute (roughly Depth Strider III) applied on enable, removed on disable. Dying keeps it working now, respawn re-applies it automatically. A relog drops it, since the whole state is memory-only. |
-| `no-ice` | on | No ice forms anywhere while anyone has dev on, Frost Walker included. World-wide by nature, so it affects everyone, not just you. |
-| `inventory-clear` | on | Every second: if you have 4 or more free slots it does nothing, otherwise it wipes the 36 storage slots except hoes/axes and up to 64 seeds of whatever you farmed last. Harvested crops get deleted too, so only replant material survives. Armor and offhand are never touched. Deletes quietly, never drops items. Runs even while you're dead or spectating, that's on purpose. |
-| `full-age-replant` | on | Crops you break replant fully grown, young ones included, so a half-grown farm normalizes the moment you harvest it. Seed rules don't change: immature crops still drop nothing and eat no seed. |
-| `harvest-counter` | on | Spark profiler windows get counted and reported. Workflow below. |
-| `fast-growth` | on | Crops placed by anyone pop in fully grown, and enabling dev fully grows the 25×25×5 area around you once. No growth task runs after that. Crops grown young by villagers stay vanilla until you re-toggle. |
+| Key                | Default | What it does                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fast-water`       | on      | Water acts like dry land. A transient +1.0 water movement attribute (roughly Depth Strider III) applied on enable, removed on disable. Dying keeps it working now, respawn re-applies it automatically. A relog drops it, since the whole state is memory-only.                                                                                                                     |
+| `no-ice`           | on      | No ice forms anywhere while anyone has dev on, Frost Walker included. World-wide by nature, so it affects everyone, not just you.                                                                                                                                                                                                                                                   |
+| `inventory-clear`  | on      | Every second: if you have 4 or more free slots it does nothing, otherwise it wipes the 36 storage slots except hoes/axes and up to 64 seeds of whatever you farmed last. Harvested crops get deleted too, so only replant material survives. Armor and offhand are never touched. Deletes quietly, never drops items. Runs even while you're dead or spectating, that's on purpose. |
+| `full-age-replant` | on      | Crops you break replant fully grown, young ones included, so a half-grown farm normalizes the moment you harvest it. Seed rules don't change: immature crops still drop nothing and eat no seed.                                                                                                                                                                                    |
+| `harvest-counter`  | on      | Spark profiler windows get counted and reported. Workflow below.                                                                                                                                                                                                                                                                                                                    |
+| `fast-growth`      | on      | Crops placed by anyone pop in fully grown, and enabling dev fully grows the 25×25×5 area around you once. No growth task runs after that. Crops grown young by villagers stay vanilla until you re-toggle.                                                                                                                                                                          |
 
 All six default to on. To turn one off, add a `dev:` section to config.yml by
 hand (it never ships there), then `/rpp reload`:
@@ -65,7 +65,7 @@ Things worth knowing:
 - Nobody in dev mode: no dev code runs. Two emptiness checks per harvest and
   one boolean per ice event, that's the whole cost.
 - Someone in dev mode: the clear task scans 36 slots once a second,
-  allocation-free. The latest benchmark had dev fully active during a 5 minute
-  profile and it measured 0.01% of the server thread. Numbers in BENCHMARK.md.
+  allocation-free. The latest benchmark had dev fully active during a 5-minute
+  profile, and it measured 0.01% of the server thread. Numbers in BENCHMARK.md.
 
 It's sandbox code. Speed is the point, don't productionize it.
