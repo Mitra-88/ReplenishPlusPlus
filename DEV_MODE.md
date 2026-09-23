@@ -7,6 +7,8 @@ It's invisible on purpose: no menu entry, nothing in `/rpp status`, nothing in
 `/rpp reload`, no `dev:` section in `config.yml`, no README row, no permission
 listing. This file is the only doc, and it doesn't leave your machine.
 
+![The testing world](preview/testing-world-preview.png)
+
 ## How it behaves
 
 - `/rpp dev` toggles it, just for you. Permission `replenishplusplus.dev`, so op.
@@ -59,6 +61,14 @@ Things worth knowing:
 - Stopping requires the counter still enabled. If you set
   `harvest-counter: false` and reload mid-window, a manual stop won't print a
   report until you turn it back on. A timed window still closes on its own.
+
+## The testing world
+
+The farm above lives in a void world built for these tests. If you want the
+exact setup, it's packaged: [Server Testing.7z](devmode/Server%20Testing.7z)
+contains the world, `server.properties`, and the plugin config folder. Drop
+them into a fresh Paper 26.3 server, add the plugin jar, start it, and the
+numbers in BENCHMARK.md are reproducible.
 
 ## Performance
 
