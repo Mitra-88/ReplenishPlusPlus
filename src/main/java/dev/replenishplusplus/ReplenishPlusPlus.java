@@ -1,7 +1,9 @@
 package dev.replenishplusplus;
 
 import dev.replenishplusplus.command.ReplenishPlusPlusCommand;
+import dev.replenishplusplus.compat.ApiBuildCheck;
 import dev.replenishplusplus.compat.PluginConflicts;
+import dev.replenishplusplus.compat.ServerVersionCheck;
 import dev.replenishplusplus.config.ConfigCache;
 import dev.replenishplusplus.config.Messages;
 import dev.replenishplusplus.config.PlayerToggleManager;
@@ -19,6 +21,7 @@ import dev.replenishplusplus.queue.ReplantQueue;
 import dev.replenishplusplus.update.UpdateChecker;
 import dev.replenishplusplus.update.UpdateNotificationListener;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -88,6 +91,23 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         if (!conflicts.isEmpty()) {
             sendConsole("<yellow>Known incompatible plugins detected: <white>" + String.join(", ", conflicts)
                     + " <dark_gray>· <gray>reported to break Replenish++ features, staying enabled");
+        }
+
+        String serverMc = Bukkit.getMinecraftVersion();
+        String pluginApi = getPluginMeta().getAPIVersion();
+        int[] pluginApiParts = ServerVersionCheck.parse(pluginApi);
+        int[] serverParts = ServerVersionCheck.parse(serverMc);
+        if (pluginApiParts != null && serverParts != null
+                && ServerVersionCheck.serverIsNewer(pluginApiParts, serverParts)) {
+            sendConsole("<yellow>Server warning: this server runs Minecraft <white>" + serverMc
+                    + "<yellow>, which is newer than the <white>" + pluginApi
+                    + "<yellow> API this build of Replenish++ was compiled for. "
+                    + "If anything misbehaves, update the plugin first.");
+        }
+
+        String apiBuildWarning = ApiBuildCheck.newerApiWarning(getServer().getVersion(), ApiBuildCheck.COMPILED_API_BUILD);
+        if (apiBuildWarning != null) {
+            sendConsole(apiBuildWarning);
         }
 
         updateChecker = new UpdateChecker(this, config.checkUpdates());

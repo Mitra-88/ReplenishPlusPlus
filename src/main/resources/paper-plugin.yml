@@ -6,6 +6,13 @@ description: "Auto-replant for Paper/Purpur. Break a crop, it goes right back in
 authors: [ "Mitra-88" ]
 website: "https://github.com/Mitra-88/ReplenishPlusPlus"
 
+dependencies:
+  server:
+    spark:
+      load: BEFORE
+      required: false
+      join-classpath: true
+
 permissions:
   replenishplusplus.use:
     description: Allows the player to use the main /replenishplusplus command and view help.

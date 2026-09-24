@@ -2,6 +2,7 @@ package dev.replenishplusplus.pad;
 
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
+import org.jetbrains.annotations.NotNull;
 
 public final class PadMenuHolder implements InventoryHolder {
 
@@ -31,7 +32,7 @@ public final class PadMenuHolder implements InventoryHolder {
     }
 
     @Override
-    public Inventory getInventory() {
+    public @NotNull Inventory getInventory() {
         return inventory;
     }
 

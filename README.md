@@ -88,6 +88,8 @@ checkUpdates: true
 
 Everything players see in chat lives in `plugins/ReplenishPlusPlus/en_us.yml` MiniMessage formatting, same `/rpp reload` applies it.
 
+<details>
+
 ### Full default config.yml
 
 ```yaml
@@ -194,6 +196,7 @@ sounds:
     volume: 0.5
     pitch: 1.0
 ```
+</details>
 
 ## Contributions
 
@@ -201,4 +204,4 @@ PRs are disabled on this repo, not because I don't want your help but because ma
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+Custom practical license, short version: server owners and developers can inspect, edit, compile, fork, and run it freely on their own servers. Nobody may sell it or put modified builds behind a paywall (BuiltByBit, SpigotMC, Polymart, Tebex, etc). Fork it, modify it, distribute it, just give back to the maintainers instead of profiting off it. Full terms in [LICENSE](LICENSE).

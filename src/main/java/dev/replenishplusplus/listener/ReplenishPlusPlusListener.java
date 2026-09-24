@@ -127,7 +127,7 @@ public final class ReplenishPlusPlusListener implements Listener {
 
         int originalAge = ageable.getAge();
         boolean wasMature = originalAge >= info.maximumAge();
-        Collection<ItemStack> drops = wasMature ? matureDrops(block, crop, tool, player) : Collections.emptyList();
+        Collection<ItemStack> drops = wasMature ? matureDrops(crop, tool) : Collections.emptyList();
 
         boolean seedConsumed = false;
         if (wasMature && config.requirePlayerSeed()) {
@@ -154,13 +154,9 @@ public final class ReplenishPlusPlusListener implements Listener {
         };
     }
 
-    private Collection<ItemStack> matureDrops(Block block, CropType crop, ItemStack tool, Player player) {
+    private List<ItemStack> matureDrops(CropType crop, ItemStack tool) {
         int fortune = Math.max(0, tool.getEnchantmentLevel(Enchantment.FORTUNE));
-        int[] counts = VanillaCropDrops.counts(crop, fortune, ThreadLocalRandom.current());
-        if (counts == null) {
-            return block.getDrops(tool, player);
-        }
-        return stacksFor(crop, counts);
+        return stacksFor(crop, VanillaCropDrops.counts(crop, fortune, ThreadLocalRandom.current()));
     }
 
     private static List<ItemStack> stacksFor(CropType crop, int[] counts) {

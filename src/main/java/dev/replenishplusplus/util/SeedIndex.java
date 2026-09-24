@@ -61,7 +61,8 @@ public final class SeedIndex {
         if (stack.getAmount() > 1) {
             stack.setAmount(stack.getAmount() - 1);
         } else {
-            writeSlot(inventory, slot, null);
+            if (isOffhand(slot)) inventory.setItem(EquipmentSlot.OFF_HAND, null);
+            else inventory.setItem(slot, null);
             cache.put(material, findNextSlot(inventory, material));
         }
         return true;
@@ -69,11 +70,6 @@ public final class SeedIndex {
 
     private static ItemStack readSlot(PlayerInventory inventory, int slot) {
         return isOffhand(slot) ? inventory.getItem(EquipmentSlot.OFF_HAND) : inventory.getItem(slot);
-    }
-
-    private static void writeSlot(PlayerInventory inventory, int slot, ItemStack stack) {
-        if (isOffhand(slot)) inventory.setItem(EquipmentSlot.OFF_HAND, stack);
-        else inventory.setItem(slot, stack);
     }
 
     private static boolean isOffhand(int slot) {

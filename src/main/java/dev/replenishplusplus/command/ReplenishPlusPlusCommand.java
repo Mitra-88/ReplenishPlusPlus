@@ -12,10 +12,20 @@ import dev.replenishplusplus.queue.QueueStats;
 import dev.replenishplusplus.update.UpdateChecker;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
+import me.lucko.spark.api.Spark;
+import me.lucko.spark.api.SparkProvider;
+import me.lucko.spark.api.statistic.StatisticWindow;
+import me.lucko.spark.api.statistic.misc.DoubleAverageInfo;
+import me.lucko.spark.api.statistic.types.DoubleStatistic;
+import me.lucko.spark.api.statistic.types.GenericStatistic;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
+import java.lang.management.ManagementFactory;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -30,32 +40,39 @@ public final class ReplenishPlusPlusCommand {
 
     public void register(Commands commands) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("replenishplusplus")
+                .requires(needs("replenishplusplus.use"))
                 .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.use", this::sendMainMenu))
-                .then(Commands.literal("help")
-                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.use", this::sendHelp)))
-                .then(Commands.literal("status")
-                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.status", this::sendStatus)))
-                .then(Commands.literal("reload")
-                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.reload", this::handleReload)))
+                .then(needsLiteral("help", "replenishplusplus.use", this::sendHelp))
+                .then(needsLiteral("status", "replenishplusplus.status", this::sendStatus))
+                .then(needsLiteral("reload", "replenishplusplus.reload", this::handleReload))
                 .then(Commands.literal("toggle")
+                        .requires(needs("replenishplusplus.toggle"))
                         .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.toggle", this::handlePersonalToggle))
-                        .then(Commands.literal("global")
-                                .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.toggle.global", this::handleGlobalToggle))))
-                .then(Commands.literal("dev")
-                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.dev", this::handleDevToggle)))
-                .then(Commands.literal("pad")
-                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.pad", this::handlePadGive)))
-                .then(Commands.literal("version")
-                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.version", this::sendVersion)))
+                        .then(needsLiteral("global", "replenishplusplus.toggle.global", this::handleGlobalToggle)))
+                .then(needsLiteral("dev", "replenishplusplus.dev", this::handleDevToggle))
+                .then(needsLiteral("pad", "replenishplusplus.pad", this::handlePadGive))
+                .then(needsLiteral("version", "replenishplusplus.version", this::sendVersion))
                 .then(Commands.literal("debug")
-                        .then(Commands.literal("queue")
-                                .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.debug", this::handleDebugQueue))));
+                        .requires(needs("replenishplusplus.debug"))
+                        .executes(ctx -> execute(ctx.getSource(), "replenishplusplus.debug", this::handleDiagnostics))
+                        .then(needsLiteral("queue", "replenishplusplus.debug", this::handleDebugQueue)));
 
         var rootNode = root.build();
 
         commands.register(rootNode);
-        commands.register(Commands.literal("rpp").redirect(rootNode).build());
-        commands.register(Commands.literal("replenish").redirect(rootNode).build());
+        commands.register(Commands.literal("rpp").requires(needs("replenishplusplus.use")).redirect(rootNode).build());
+        commands.register(Commands.literal("replenish").requires(needs("replenishplusplus.use")).redirect(rootNode).build());
+    }
+
+    private static java.util.function.Predicate<CommandSourceStack> needs(String permission) {
+        return source -> source.getSender().hasPermission(permission);
+    }
+
+    private LiteralArgumentBuilder<CommandSourceStack> needsLiteral(
+            String name, String permission, Consumer<CommandSender> action) {
+        return Commands.literal(name)
+                .requires(needs(permission))
+                .executes(ctx -> execute(ctx.getSource(), permission, action));
     }
 
     private int execute(CommandSourceStack source, String permission, Consumer<CommandSender> action) {
@@ -203,24 +220,177 @@ public final class ReplenishPlusPlusCommand {
     }
 
     private void handleDebugQueue(CommandSender sender) {
-        QueueStats stats = plugin.getQueueStats();
-        double usagePercent = 100.0 * stats.pendingCount() / stats.maxPoolSize();
-
         var sb = new StringBuilder();
         sb.append("\n<dark_gray>      [ <gradient:#FFD700:#FF9D00><bold>Queue Debug</bold></gradient> <dark_gray>]\n\n");
+        appendQueueLines(sb);
+        sb.append(Messages.LINE);
+
+        send(sender, sb.toString());
+    }
+
+    private void appendQueueLines(StringBuilder sb) {
+        QueueStats stats = plugin.getQueueStats();
+        double usagePercent = 100.0 * stats.pendingCount() / stats.maxPoolSize();
         sb.append("  ").append(Messages.DOT).append("<gray>Pending replants: <white>").append(stats.pendingCount()).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Pool size: <white>").append(stats.currentPoolSize())
                 .append("<dark_gray>/<white>").append(stats.maxPoolSize()).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Capacity used: <white>")
-                .append(String.format(Locale.ROOT, "%.1f%%", usagePercent)).append("\n\n");
+                .append(String.format(Locale.ROOT, "%.1f%%", usagePercent)).append("\n");
         if (stats.pendingCount() > stats.maxPoolSize() / 2) {
-            sb.append("  ").append(Messages.DOT).append("<yellow>⚠ <gray>Queue is over 50% full, consider raising maxReplantsQueued.\n\n");
+            sb.append("  ").append(Messages.DOT).append("<yellow>⚠ <gray>Queue is over 50% full, consider raising maxReplantsQueued.\n");
         } else {
-            sb.append("  ").append(Messages.DOT).append("<green>✔ <gray>Queue is healthy.\n\n");
+            sb.append("  ").append(Messages.DOT).append("<green>✔ <gray>Queue is healthy.\n");
         }
+    }
+
+    private void handleDiagnostics(CommandSender sender) {
+        ConfigCache cfg = plugin.getConfigCache();
+        double[] tps = Bukkit.getTPS();
+        TickSample ticks = sampleTicks(Bukkit.getTickTimes());
+        Runtime runtime = Runtime.getRuntime();
+        long heapUsed = (runtime.totalMemory() - runtime.freeMemory()) / (1024L * 1024L);
+        long heapMax = runtime.maxMemory() / (1024L * 1024L);
+        int heapPercent = heapMax == 0 ? 0 : (int) (100 * heapUsed / heapMax);
+
+        var sb = new StringBuilder();
+        sb.append("\n<dark_gray>      [ <gradient:#FFD700:#FF9D00><bold>Replenish++ Diagnostics</bold></gradient> <dark_gray>]\n\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Players online: <white>").append(Bukkit.getOnlinePlayers().size())
+                .append("<dark_gray>/<white>").append(Bukkit.getMaxPlayers()).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Uptime: <white>")
+                .append(formatUptime(ManagementFactory.getRuntimeMXBean().getUptime())).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>TPS <dark_gray>(<gray>1m · 5m · 15m<dark_gray>): ")
+                .append(tpsText(tps[0])).append(" <dark_gray>· ").append(tpsText(tps[1]))
+                .append(" <dark_gray>· ").append(tpsText(tps[2])).append("\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Server feels ").append(tpsVerdict(tps[1])).append("\n");
+        Spark spark = detectSpark();
+        if (spark != null) {
+            appendSparkLines(sb, spark);
+        } else {
+            sb.append("  ").append(Messages.DOT).append("<gray>Spark is not installed, long-window stats unavailable.\n");
+        }
+        if (ticks.count() > 0) {
+            sb.append("  ").append(Messages.DOT).append("<gray>Recent ticks (min · median · avg · max): <white>")
+                    .append(formatMs(ticks.min())).append(" <dark_gray>· <white>").append(formatMs(ticks.median()))
+                    .append(" <dark_gray>· <white>").append(formatMs(ticks.average()))
+                    .append(" <dark_gray>· <white>").append(formatMs(ticks.max())).append(" ms\n");
+            sb.append("  ").append(Messages.DOT).append("<gray>Lagged ticks over 50ms: ")
+                    .append(laggedText(ticks)).append("\n");
+            sb.append("  ").append(Messages.DOT).append("<gray>Median tick budget used: <white>")
+                    .append(String.format(Locale.ROOT, "%.1f%%", 100 * ticks.median() / 50.0)).append("\n");
+        }
+        sb.append("  ").append(Messages.DOT).append("<gray>Heap: <white>").append(heapUsed).append("<gray>/<white>")
+                .append(heapMax).append(" MB ").append(heapColor(heapPercent)).append("\n\n");
+
+        sb.append("<gradient:#FFD700:#FF9D00><bold>Replant queue</bold></gradient>\n");
+        appendQueueLines(sb);
+        sb.append("  ").append(Messages.DOT).append("<gray>Delay window: <white>random 1..").append(cfg.replantDelayTicks())
+                .append(" <gray>ticks\n");
+        sb.append("  ").append(Messages.DOT).append("<gray>Max per tick: <white>").append(cfg.maxReplantsPerTick()).append("\n\n");
+
+        sb.append(Messages.LINE);
+        sb.append("  <dark_gray>If TPS dips, spark gives the full picture; this screen is a quick read.\n");
         sb.append(Messages.LINE);
 
         send(sender, sb.toString());
+    }
+
+    private record TickSample(int count, double min, double median, double average, double max, int lagged) {}
+
+    private Spark detectSpark() {
+        Plugin sparkPlugin = Bukkit.getPluginManager().getPlugin("spark");
+        if (sparkPlugin == null || !sparkPlugin.isEnabled()) return null;
+        try {
+            return SparkProvider.get();
+        } catch (IllegalStateException ignored) {
+            return null;
+        }
+    }
+
+    private void appendSparkLines(StringBuilder sb, Spark spark) {
+        GenericStatistic<DoubleAverageInfo, StatisticWindow.MillisPerTick> mspt = spark.mspt();
+        if (mspt != null) {
+            DoubleAverageInfo fiveMinutes = mspt.poll(StatisticWindow.MillisPerTick.MINUTES_5);
+            DoubleAverageInfo oneMinute = mspt.poll(StatisticWindow.MillisPerTick.MINUTES_1);
+            sb.append("  ").append(Messages.DOT).append("<gray>MSPT (spark, 5m window): <white>median ")
+                    .append(formatMs(fiveMinutes.median())).append(" <dark_gray>· <white>p95 ")
+                    .append(formatMs(fiveMinutes.percentile95th())).append(" <dark_gray>· <white>max ")
+                    .append(formatMs(fiveMinutes.max())).append(" ms\n");
+            sb.append("  ").append(Messages.DOT).append("<gray>MSPT (spark, 1m window): <white>median ")
+                    .append(formatMs(oneMinute.median())).append(" <dark_gray>· <white>p95 ")
+                    .append(formatMs(oneMinute.percentile95th())).append(" <dark_gray>· <white>max ")
+                    .append(formatMs(oneMinute.max())).append(" ms\n");
+        }
+        DoubleStatistic<StatisticWindow.CpuUsage> cpuProcess = spark.cpuProcess();
+        DoubleStatistic<StatisticWindow.CpuUsage> cpuSystem = spark.cpuSystem();
+        double processLoad = cpuProcess.poll(StatisticWindow.CpuUsage.MINUTES_1) * 100.0;
+        double systemLoad = cpuSystem.poll(StatisticWindow.CpuUsage.MINUTES_1) * 100.0;
+        sb.append("  ").append(Messages.DOT).append("<gray>CPU (spark, 1m window): <white>process ")
+                .append(String.format(Locale.ROOT, "%.1f", processLoad)).append("%<dark_gray> · <white>system ")
+                .append(String.format(Locale.ROOT, "%.1f", systemLoad)).append("%\n");
+    }
+
+    private static TickSample sampleTicks(long[] tickTimes) {
+        if (tickTimes.length == 0) {
+            return new TickSample(0, 0, 0, 0, 0, 0);
+        }
+        long[] sorted = tickTimes.clone();
+        Arrays.sort(sorted);
+        double median = sorted.length % 2 == 1
+                ? sorted[sorted.length / 2] / 1_000_000.0
+                : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2_000_000.0;
+        long total = 0;
+        int lagged = 0;
+        for (long tick : sorted) {
+            total += tick;
+            if (tick > 50_000_000L) lagged++;
+        }
+        return new TickSample(
+                sorted.length,
+                sorted[0] / 1_000_000.0,
+                median,
+                total / (double) sorted.length / 1_000_000.0,
+                sorted[sorted.length - 1] / 1_000_000.0,
+                lagged);
+    }
+
+    private static String tpsText(double tps) {
+        double clamped = Math.min(tps, 20.0);
+        String color = tps >= 19.0 ? "green" : tps >= 15.0 ? "yellow" : "red";
+        return "<" + color + ">" + String.format(Locale.ROOT, "%.2f", clamped) + "</" + color + ">";
+    }
+
+    private static String tpsVerdict(double tps5m) {
+        if (tps5m >= 19.0) return "<green>smooth</green>";
+        if (tps5m >= 15.0) return "<yellow>degraded</yellow>";
+        return "<red>lagging</red>";
+    }
+
+    private static String laggedText(TickSample ticks) {
+        if (ticks.lagged() == 0) return "<green>0 of " + ticks.count() + " (0%)</green>";
+        long percent = 100L * ticks.lagged() / ticks.count();
+        String color = percent <= 5 ? "yellow" : "red";
+        return "<" + color + ">" + ticks.lagged() + " of " + ticks.count() + " (" + percent + "%)</" + color + ">";
+    }
+
+    private static String heapColor(int percent) {
+        if (percent < 75) return "<dark_gray>(" + percent + "%)";
+        if (percent < 90) return "<yellow>(" + percent + "%)";
+        return "<red>(" + percent + "%)";
+    }
+
+    private static String formatUptime(long uptimeMs) {
+        long totalSeconds = uptimeMs / 1000;
+        long days = totalSeconds / 86400;
+        long hours = (totalSeconds % 86400) / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+        if (days > 0) return days + "d " + hours + "h " + minutes + "m";
+        if (hours > 0) return hours + "h " + minutes + "m";
+        return minutes + "m " + seconds + "s";
+    }
+
+    private static String formatMs(double millis) {
+        return String.format(Locale.ROOT, "%.2f", millis);
     }
 
     private void sendVersion(CommandSender sender) {

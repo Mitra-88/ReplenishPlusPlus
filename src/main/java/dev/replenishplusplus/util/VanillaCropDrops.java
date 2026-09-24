@@ -14,10 +14,9 @@ public final class VanillaCropDrops {
 
     public static int[] counts(CropType crop, int fortune, Random random) {
         return switch (crop) {
-            case WHEAT -> new int[] {1, 1 + binomialBonus(fortune, random)};
+            case WHEAT, BEETROOTS -> new int[] {1, 1 + binomialBonus(fortune, random)};
             case CARROTS -> new int[] {1 + binomialBonus(fortune, random)};
             case POTATOES -> new int[] {1 + binomialBonus(fortune, random), random.nextDouble() < POISONOUS_POTATO_CHANCE ? 1 : 0};
-            case BEETROOTS -> new int[] {1, 1 + binomialBonus(fortune, random)};
             case NETHER_WART -> new int[] {uniform(2, 4, random) + uniform(0, fortune, random)};
             case COCOA -> new int[] {3};
         };

@@ -78,7 +78,7 @@ public final class PadMenus {
         PadMenuHolder holder = new PadMenuHolder(PadMenuHolder.Type.CONFIG, pad.key(), 0);
         Inventory menu = Bukkit.createInventory(holder, 27, title("Teleport Pad"));
         holder.inventory(menu);
-        fill(menu, 27);
+        fill(menu);
 
         String destination;
         String destinationName = "";
@@ -166,8 +166,8 @@ public final class PadMenus {
         }
     }
 
-    private static void fill(Inventory menu, int size) {
-        for (int i = 0; i < size; i++) menu.setItem(i, filler());
+    private static void fill(Inventory menu) {
+        for (int i = 0; i < menu.getSize(); i++) menu.setItem(i, filler());
     }
 
     private static ItemStack filler() {

@@ -22,14 +22,20 @@ public final class PadIcons {
         for (Icon icon : ICONS) {
             if (icon.id().equals(id)) return icon;
         }
-        return ICONS.get(0);
+        return ICONS.getFirst();
     }
 
     public static Icon defaultIcon() {
-        return ICONS.get(0);
+        return ICONS.getFirst();
     }
 
     private static List<Icon> build() {
+        List<Icon> icons = new ArrayList<>(woolIcons());
+        icons.addAll(paperIcons());
+        return List.copyOf(icons);
+    }
+
+    private static List<Icon> woolIcons() {
         Material[] wools = {
                 Material.RED_WOOL, Material.YELLOW_WOOL, Material.LIME_WOOL, Material.BLUE_WOOL,
                 Material.MAGENTA_WOOL, Material.ORANGE_WOOL, Material.GRAY_WOOL, Material.WHITE_WOOL,
@@ -40,6 +46,14 @@ public final class PadIcons {
         String[] colorTitles = {"Red", "Yellow", "Lime", "Blue", "Magenta", "Orange", "Gray", "White",
                 "Green", "Aqua", "Purple", "Black", "Cyan"};
 
+        List<Icon> icons = new ArrayList<>();
+        for (int i = 0; i < wools.length; i++) {
+            icons.add(new Icon(colorIds[i], wools[i], colorTitles[i]));
+        }
+        return icons;
+    }
+
+    private static List<Icon> paperIcons() {
         String[] numbers = {"One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
                 "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen",
                 "Eighteen", "Nineteen", "Twenty", "TwentyOne", "TwentyTwo", "TwentyThree", "TwentyFour",
@@ -48,12 +62,9 @@ public final class PadIcons {
                 "ThirtySeven", "ThirtyEight", "ThirtyNine", "Forty", "FortyOne", "FortyTwo", "FortyThree"};
 
         List<Icon> icons = new ArrayList<>();
-        for (int i = 0; i < wools.length; i++) {
-            icons.add(new Icon(colorIds[i], wools[i], colorTitles[i]));
-        }
         for (String number : numbers) {
             icons.add(new Icon(number.toUpperCase(Locale.ROOT), Material.PAPER, number));
         }
-        return List.copyOf(icons);
+        return icons;
     }
 }
