@@ -134,7 +134,7 @@ body:
       options:
         - "CHAT (default)"
         - "ACTION_BAR"
-        - "NONE"
+        - "NONE (no notifications)"
         - "Haven't touched the config"
     validations:
       required: true
