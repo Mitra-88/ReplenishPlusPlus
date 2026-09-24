@@ -12,7 +12,7 @@ public final class Messages {
 
     public static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     public static final String DOT = "<dark_gray>• ";
-    public static final String LINE = "<gradient:#FFD700:#FF9D00><st>                                                  </st></gradient>";
+    public static final String LINE = "<gradient:#FFD700:#FF9D00><st>                                                                               </st></gradient>";
 
     private static final String DEFAULT_PREFIX = "<gradient:#FFD700:#FF9D00><bold>Replenish++</bold></gradient> <dark_gray>»</dark_gray>";
 

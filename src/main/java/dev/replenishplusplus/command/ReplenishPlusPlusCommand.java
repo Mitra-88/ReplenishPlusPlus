@@ -288,7 +288,7 @@ public final class ReplenishPlusPlusCommand {
         sb.append("  ").append(Messages.DOT).append("<gray>Max per tick: <white>").append(cfg.maxReplantsPerTick()).append("\n\n");
 
         sb.append(Messages.LINE);
-        sb.append("  <dark_gray>If TPS dips, spark gives the full picture; this screen is a quick read.\n");
+        sb.append("  <dark_gray>\nIf TPS dips, spark gives the full picture; this screen is a quick read.\n");
         sb.append(Messages.LINE);
 
         send(sender, sb.toString());
