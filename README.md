@@ -64,9 +64,11 @@ Permissions:
 - `replenishplusplus.toggle.global` - op
 - `replenishplusplus.reload` - op
 - `replenishplusplus.debug` - op
-- `replenishplusplus.pad` - op (Only meant for devs)
+- `replenishplusplus.pad` - op (still WIP, but players are welcome)
 - `replenishplusplus.update` - op
 - `replenishplusplus.*` - op (grants all of the above)
+
+**A note on Teleport Pads:** `/rpp pad` is still a work in progress, which is why it's op-only. It already works though, so if you want warp pads around your base, feel free to give the `replenishplusplus.pad` permission to players you trust.
 
 ## Config
 
