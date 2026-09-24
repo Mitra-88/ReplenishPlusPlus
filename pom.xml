@@ -64,8 +64,6 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
-                                        <exclude>**/LICENSE*</exclude>
-                                        <exclude>**/NOTICE*</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -108,6 +106,15 @@
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+            </resource>
+            <resource>
+                <directory>${project.basedir}</directory>
+                <targetPath>META-INF</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>LICENSE.txt</include>
+                    <include>THIRD_PARTY_NOTICES.md</include>
+                </includes>
             </resource>
         </resources>
     </build>

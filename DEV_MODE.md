@@ -72,8 +72,7 @@ them into a fresh Paper 26.3 server, add the plugin jar, start it, and the
 numbers in BENCHMARK.md are reproducible.
 
 The farm sits at `-75 5 -91`. After loading in, teleport to it with
-`/minecraft:tp @e -75 5 -91`. The plugin pins the wool pad displays, so they
-ignore teleports and stay on their pads even when `@e` tries to drag them along.
+`/minecraft:tp @p -75 5 -91` or `/tp @p -75 5 -91`.
 
 ## Performance
 

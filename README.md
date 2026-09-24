@@ -204,4 +204,4 @@ PRs are disabled on this repo, not because I don't want your help but because ma
 
 ## License
 
-Custom practical license, short version: server owners and developers can inspect, edit, compile, fork, and run it freely on their own servers. Nobody may sell it or put modified builds behind a paywall (BuiltByBit, SpigotMC, Polymart, Tebex, etc). Fork it, modify it, distribute it, just give back to the maintainers instead of profiting off it. Full terms in [LICENSE](LICENSE).
+This project is licensed under the [CC BY-NC-SA 4.0](LICENSE.txt): credit required, non-commercial only (no selling or paywalls), forks must use the same license. Want to sell it or use it commercially? Ask Mitra-88 for permission.

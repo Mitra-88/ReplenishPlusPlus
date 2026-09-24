@@ -1,7 +1,6 @@
 package dev.replenishplusplus;
 
 import dev.replenishplusplus.command.ReplenishPlusPlusCommand;
-import dev.replenishplusplus.compat.ApiBuildCheck;
 import dev.replenishplusplus.compat.PluginConflicts;
 import dev.replenishplusplus.compat.ServerVersionCheck;
 import dev.replenishplusplus.config.ConfigCache;
@@ -67,21 +66,21 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         ConfigCache config = getConfigCache();
         int enabledCrops = CropType.values().length - config.disabledCrops().size();
 
-        sendConsole("<gradient:#FFD700:#FF9D00>Loaded successfully</gradient> <dark_gray>· <white>v" + getPluginMeta().getVersion());
-        sendConsole("<gradient:#FFD700:#FF9D00>Supported crops</gradient> <dark_gray>· <white>" + enabledCrops);
+        sendConsole("<blue>Loaded successfully</blue> <dark_gray>· <white>v" + getPluginMeta().getVersion());
+        sendConsole("<blue>Supported crops</blue> <dark_gray>· <white>" + enabledCrops);
         if (!config.disabledCrops().isEmpty()) {
             StringBuilder disabled = new StringBuilder();
             for (CropType crop : config.disabledCrops()) {
                 if (!disabled.isEmpty()) disabled.append(", ");
                 disabled.append(crop.name().toLowerCase(Locale.ROOT));
             }
-            sendConsole("<yellow>Disabled crops</yellow> <dark_gray>· <white>" + disabled);
+            sendConsole("<blue>Disabled crops</blue> <dark_gray>· <white>" + disabled);
         }
-        sendConsole("<gradient:#FFD700:#FF9D00>Replants per tick</gradient> <dark_gray>· <white>" + config.maxReplantsPerTick());
-        sendConsole("<gradient:#FFD700:#FF9D00>Queue capacity</gradient> <dark_gray>· <white>" + config.maxReplantsQueued());
+        sendConsole("<blue>Replants per tick</blue> <dark_gray>· <white>" + config.maxReplantsPerTick());
+        sendConsole("<blue>Queue capacity</blue> <dark_gray>· <white>" + config.maxReplantsQueued());
         int delayTicks = config.replantDelayTicks();
-        sendConsole("<gradient:#FFD700:#FF9D00>Replant delay</gradient> <dark_gray>· <white>up to " + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
-        sendConsole("<gradient:#FFD700:#FF9D00>Running version</gradient> <dark_gray>· <white>v" + getPluginMeta().getVersion());
+        sendConsole("<blue>Replant delay</blue> <dark_gray>· <white>up to " + delayTicks + (delayTicks == 1 ? " tick" : " ticks"));
+        sendConsole("<blue>Running version</blue> <dark_gray>· <white>v" + getPluginMeta().getVersion());
 
         List<String> installed = new ArrayList<>();
         for (Plugin plugin : getServer().getPluginManager().getPlugins()) {
@@ -89,7 +88,8 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         }
         List<String> conflicts = PluginConflicts.scan(PluginConflicts.KNOWN, installed);
         if (!conflicts.isEmpty()) {
-            sendConsole("<yellow>Known incompatible plugins detected: <white>" + String.join(", ", conflicts)
+            sendConsole("<bold><gradient:#FF6B6B:#B91C1C>Plugin conflict</gradient></bold> <dark_gray>· <white>Known incompatible plugins detected: "
+                    + String.join(", ", conflicts)
                     + " <dark_gray>· <gray>reported to break Replenish++ features, staying enabled");
         }
 
@@ -98,16 +98,11 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         int[] pluginApiParts = ServerVersionCheck.parse(pluginApi);
         int[] serverParts = ServerVersionCheck.parse(serverMc);
         if (pluginApiParts != null && serverParts != null
-                && ServerVersionCheck.serverIsNewer(pluginApiParts, serverParts)) {
-            sendConsole("<yellow>Server warning: this server runs Minecraft <white>" + serverMc
-                    + "<yellow>, which is newer than the <white>" + pluginApi
-                    + "<yellow> API this build of Replenish++ was compiled for. "
-                    + "If anything misbehaves, update the plugin first.");
-        }
-
-        String apiBuildWarning = ApiBuildCheck.newerApiWarning(getServer().getVersion(), ApiBuildCheck.COMPILED_API_BUILD);
-        if (apiBuildWarning != null) {
-            sendConsole(apiBuildWarning);
+                && ServerVersionCheck.lineDiffers(pluginApiParts, serverParts)) {
+            sendConsole("<red><bold>Version mismatch</bold> · this server runs "
+                    + Bukkit.getName() + " " + serverMc + ", but this build of Replenish++ was compiled for the MC "
+                    + ServerVersionCheck.render(pluginApiParts)
+                    + " API. If anything misbehaves, update the server or the plugin so the versions match.");
         }
 
         updateChecker = new UpdateChecker(this, config.checkUpdates());

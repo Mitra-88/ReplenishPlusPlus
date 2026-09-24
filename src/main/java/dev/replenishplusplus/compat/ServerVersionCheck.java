@@ -18,12 +18,23 @@ public final class ServerVersionCheck {
         return out;
     }
 
-    public static boolean serverIsNewer(int[] plugin, int[] server) {
-        for (int i = 0; i < Math.max(plugin.length, server.length); i++) {
-            int p = i < plugin.length ? plugin[i] : 0;
-            int s = i < server.length ? server[i] : 0;
-            if (s != p) return s > p;
+    public static boolean lineDiffers(int[] declared, int[] server) {
+        for (int i = 0; i < 2; i++) {
+            int x = i < declared.length ? declared[i] : 0;
+            int y = i < server.length ? server[i] : 0;
+            if (x != y) return true;
         }
         return false;
+    }
+
+    public static String render(int[] parts) {
+        int end = parts.length;
+        while (end > 2 && parts[end - 1] == 0) end--;
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < end; i++) {
+            if (i > 0) out.append('.');
+            out.append(parts[i]);
+        }
+        return out.toString();
     }
 }
