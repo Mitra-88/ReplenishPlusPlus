@@ -167,9 +167,9 @@ body:
     attributes:
       label: "Other plugins"
       description: |
-        List anything that touches farming, block breaking, or inventories: mcMMO, anti-cheats, Essentials, etc. This helps rule out conflicts.
-        Heads up: I don't fix compatibility issues with other plugins. If yours turns out to be a conflict, I'll close the issue and add the plugin to a known-incompatible list so others can check before reporting the same thing.
-      placeholder: "EssentialsX, mcMMO, NoCheatPlus..."
+        List anything that touches farming, block breaking, or inventories: mcMMO, anti-cheats, etc. This helps rule out conflicts.
+        Heads up: whether I can fix a compatibility problem depends on how complex it turns out to be. Either way, real conflicts get added to a known-incompatible list so others can check before reporting the same thing.
+      placeholder: "mcMMO, NoCheatPlus, WorldGuard..."
     validations:
       required: false
 
