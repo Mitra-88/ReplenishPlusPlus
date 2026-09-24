@@ -26,6 +26,8 @@ If you ever farmed on Hypixel SkyBlock, you already know the idea, it's Replenis
 3. Start the server
 4. (Optional) Customize `plugins/ReplenishPlusPlus/config.yml`, the default settings work fine as-is.
 
+> **Coming from Replenish 6.x?** Delete the old Replenish jar and the whole `plugins/Replenish/` folder first, old config.yml included. The plugin was rebuilt and renamed, so nothing carries over, and running both versions at once would replant crops twice.
+
 ## What happens by default (no config changes)
 
 **Mature crop:**
