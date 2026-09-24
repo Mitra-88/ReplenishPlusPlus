@@ -1,0 +1,26 @@
+# Everything git treats as text is stored with LF and checked out with LF,
+# on every OS, so autocrlf settings can never reintroduce CRLF churn.
+* text=auto eol=lf
+
+# Text sources, docs, and config, declared explicitly so they are never misdetected.
+*.java text
+*.md text
+*.txt text
+*.yml text
+*.yaml text
+*.xml text
+*.json text
+*.py text
+*.properties text
+
+# Windows scripts keep CRLF, shell scripts stay LF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.sh text eol=lf
+
+# Binaries are never diffed or normalized.
+*.jar binary
+*.png binary
+*.webp binary
+*.gif binary
+*.ico binary
