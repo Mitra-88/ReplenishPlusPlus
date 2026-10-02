@@ -125,12 +125,14 @@ public final class ReplenishPlusPlus extends JavaPlugin {
             devModeManager.shutdown();
         }
         if (padManager != null) {
-            padManager.save();
+            padManager.forceSave();
         }
         if (replantQueue != null) {
             replantQueue.flush();
         }
     }
+
+    public static final String KEPT_SETTINGS_MARKER = "keeping previous settings";
 
     public List<String> reloadLocalConfig() {
         List<String> issues = new ArrayList<>();
@@ -138,13 +140,13 @@ public final class ReplenishPlusPlus extends JavaPlugin {
         try {
             reloadConfig();
         } catch (Exception e) {
-            getLogger().log(Level.WARNING, "Config reload failed - keeping previous settings", e);
-            issues.add("config.yml could not be loaded - keeping previous settings (" + e.getMessage() + ")");
+            getLogger().log(Level.WARNING, "Config reload failed - " + KEPT_SETTINGS_MARKER, e);
+            issues.add("config.yml could not be loaded - " + KEPT_SETTINGS_MARKER + " (" + e.getMessage() + ")");
             return List.copyOf(issues);
         }
 
         if (isConfigFileBroken()) {
-            String issue = "config.yml is empty or could not be parsed (invalid YAML?) - keeping previous settings";
+            String issue = "config.yml is empty or could not be parsed (invalid YAML?) - " + KEPT_SETTINGS_MARKER;
             getLogger().warning("[Config] " + issue);
             issues.add(issue);
             return List.copyOf(issues);
