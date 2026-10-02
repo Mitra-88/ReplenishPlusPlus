@@ -32,6 +32,8 @@ class DevModeManagerTest {
         assertEquals(60L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start 60"));
         assertEquals(300L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start --timeout 300"));
         assertEquals(45L, DevModeManager.parseProfilerDurationSeconds("spark profiler start --timeout 45 --memory true"));
+        assertEquals(60L, DevModeManager.parseProfilerDurationSeconds("/spark profiler --timeout 60"));
+        assertEquals(60L, DevModeManager.parseProfilerDurationSeconds("/spark profiler --timeout 60 --memory true"));
         assertEquals(0L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start"));
         assertEquals(0L, DevModeManager.parseProfilerDurationSeconds("/spark profiler stop 60"));
         assertEquals(0L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start --timeout"));
@@ -42,5 +44,6 @@ class DevModeManagerTest {
     @Test
     void profilerDurationsAreCapped() {
         assertEquals(86_400L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start 99999999"));
+        assertEquals(86_400L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start 99999999999999999999999"));
     }
 }
