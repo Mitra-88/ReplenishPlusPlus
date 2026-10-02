@@ -23,6 +23,12 @@ class UpdateCheckerTest {
                 UpdateChecker.parseVersion("1.0.0-beta.1-mc26.2-paper"));
         assertEquals(new UpdateChecker.Version(1, 0, 0, UpdateChecker.Channel.RC, 1),
                 UpdateChecker.parseVersion("1.0.0-rc1-mc26.2-paper"));
+        assertEquals(new UpdateChecker.Version(1, 0, 0, UpdateChecker.Channel.RELEASE, 0),
+                UpdateChecker.parseVersion("1.0.0-26.3"));
+        assertEquals(new UpdateChecker.Version(1, 0, 0, UpdateChecker.Channel.RELEASE, 0),
+                UpdateChecker.parseVersion("1.0.0-26.3.2"));
+        assertEquals(new UpdateChecker.Version(7, 0, 0, UpdateChecker.Channel.RELEASE, 0),
+                UpdateChecker.parseVersion("v7.0.0-26.3"));
     }
 
     @Test
@@ -94,6 +100,73 @@ class UpdateCheckerTest {
     void extractTagNameReturnsNullWithoutTag() {
         assertNull(UpdateChecker.extractTagName("{\"name\":\"no tag here\"}"));
         assertNull(UpdateChecker.extractTagName(""));
+    }
+
+    @Test
+    void extractModrinthVersionPicksTheNewestParseableNumber() {
+        String body = "[{\"name\":\"One\",\"version_number\":\"1.0.0-26.3\",\"game_versions\":[\"26.3\"]},"
+                + "{\"name\":\"Two\",\"version_number\":\"v2.0.0-beta.1+26.3\",\"game_versions\":[\"26.3\"]},"
+                + "{\"name\":\"Three\",\"version_number\":\"not-a-version\"}]";
+        assertEquals("v2.0.0-beta.1+26.3", UpdateChecker.extractModrinthVersion(body));
+    }
+
+    @Test
+    void extractModrinthVersionReadsTheLiveModrinthShape() {
+        String body = "[{\"name\":\"Replenish++ 7.0.0 - 26.3\",\"version_number\":\"7.0.0-26.3\","
+                + "\"game_versions\":[\"26.3\"],\"loaders\":[\"paper\",\"purpur\"],\"version_type\":\"release\"}]";
+        assertEquals("7.0.0-26.3", UpdateChecker.extractModrinthVersion(body));
+    }
+
+    @Test
+    void extractModrinthVersionIgnoresVersionNumberTextInsideOtherFields() {
+        String body = "[{\"name\":\"fake \\\"version_number\\\":\\\"9.9.9\\\" here\","
+                + "\"changelog\":\"\\\"version_number\\\":\\\"8.8.8\\\"\","
+                + "\"version_number\":\"1.0.0-26.3\"}]";
+        assertEquals("1.0.0-26.3", UpdateChecker.extractModrinthVersion(body));
+    }
+
+    @Test
+    void extractorsReturnNullOnMalformedJson() {
+        assertNull(UpdateChecker.extractModrinthVersion("not json at all"));
+        assertNull(UpdateChecker.extractTagName("{{{"));
+        assertNull(UpdateChecker.extractTagName("[\"an array\"]"));
+    }
+
+    @Test
+    void extractModrinthVersionReturnsNullWithoutUsableVersions() {
+        assertNull(UpdateChecker.extractModrinthVersion("[]"));
+        assertNull(UpdateChecker.extractModrinthVersion("[{\"version_number\":\"oops\"}]"));
+        assertNull(UpdateChecker.extractModrinthVersion(""));
+    }
+
+    @Test
+    void extractModrinthVersionSkipsUnsafeVersionNumbers() {
+        String body = "[{\"version_number\":\"7.0.0'><click:open_url:'https://evil'>x\"},"
+                + "{\"version_number\":\"1.1.0-26.3\"}]";
+        assertEquals("1.1.0-26.3", UpdateChecker.extractModrinthVersion(body));
+    }
+
+    @Test
+    void extractModrinthVersionReturnsNullWhenOnlyCandidateIsUnsafe() {
+        assertNull(UpdateChecker.extractModrinthVersion(
+                "[{\"version_number\":\"7.0.0'><click:open_url:'https://evil'>x\"}]"));
+    }
+
+    @Test
+    void stripBuildMetadataDropsThePlusSuffix() {
+        assertEquals("7.0.0", UpdateChecker.stripBuildMetadata("7.0.0+build.240"));
+        assertEquals("7.0.0-rc1", UpdateChecker.stripBuildMetadata("7.0.0-rc1+build.240"));
+        assertEquals("v7.0.0", UpdateChecker.stripBuildMetadata("v7.0.0+26.3"));
+        assertEquals("7.0.0", UpdateChecker.stripBuildMetadata("7.0.0"));
+        assertEquals("", UpdateChecker.stripBuildMetadata(""));
+    }
+
+    @Test
+    void gameVersionsFilterMatchesTheExactVersionAndItsLine() {
+        assertEquals("[\"26.3\"]", UpdateChecker.gameVersionsFilter("26.3"));
+        assertEquals("[\"26.3.2\",\"26.3\"]", UpdateChecker.gameVersionsFilter("26.3.2"));
+        assertEquals("[\"1.21.11\",\"1.21\"]", UpdateChecker.gameVersionsFilter("1.21.11"));
+        assertEquals("[\"weird\"]", UpdateChecker.gameVersionsFilter("weird"));
     }
 
     @Test
