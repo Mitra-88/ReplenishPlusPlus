@@ -95,11 +95,11 @@ public record ConfigCache(
                 delayTicks, perTick, queued,
                 ConfigReader.boolValue(config, "checkUpdates", true, issues),
                 readCrops(config, issues),
-                readSound(config, "pickup", Sound.ENTITY_ITEM_PICKUP, 1.0f, issues),
-                readSound(config, "inventory-full", Sound.BLOCK_NOTE_BLOCK_BASS, 0.5f, issues),
-                readSound(config, "denied-tool", Sound.ENTITY_VILLAGER_NO, 0.5f, issues),
-                readSound(config, "denied-seed", Sound.ENTITY_VILLAGER_NO, 0.5f, issues),
-                readSound(config, "replant-failed", Sound.ENTITY_ITEM_BREAK, 1.0f, issues),
+                readSound(config, "pickup", Sound.ENTITY_ITEM_PICKUP, 1.0f, 1.0f, issues),
+                readSound(config, "inventory-full", Sound.BLOCK_NOTE_BLOCK_BASS, 0.5f, 1.0f, issues),
+                readSound(config, "denied-tool", Sound.ENTITY_VILLAGER_NO, 0.5f, 1.0f, issues),
+                readSound(config, "denied-seed", Sound.ENTITY_VILLAGER_NO, 0.5f, 1.0f, issues),
+                readSound(config, "replant-failed", Sound.ENTITY_ITEM_BREAK, 1.0f, 0.5f, issues),
                 readDevOptions(config, issues));
     }
     private static DevOptions readDevOptions(FileConfiguration config, List<String> issues) {
@@ -127,17 +127,17 @@ public record ConfigCache(
         return MessageStyle.CHAT;
     }
 
-    private static SoundEffect readSound(FileConfiguration config, String key, Sound fallback, float fallbackPitch, List<String> issues) {
+    private static SoundEffect readSound(FileConfiguration config, String key, Sound fallback, float fallbackPitch, float fallbackVolume, List<String> issues) {
         String path = "sounds." + key;
         boolean enabled = ConfigReader.boolValue(config, path + ".enabled", true, issues);
 
         String soundName = ConfigReader.stringValue(config, path + ".sound", null, issues);
         Optional<Sound> resolved = SoundRegistryMapper.lookup(soundName);
-        if (soundName != null && !soundName.isBlank() && resolved.isEmpty()) {
+        if (soundName != null && resolved.isEmpty()) {
             issues.add(path + ".sound: '" + soundName + "' did not match any sound - falling back to " + SoundRegistryMapper.keyName(fallback));
         }
 
-        float volume = ConfigReader.floatValue(config, path + ".volume", 1.0f, issues);
+        float volume = ConfigReader.floatValue(config, path + ".volume", fallbackVolume, issues);
         float pitch = ConfigReader.floatValue(config, path + ".pitch", fallbackPitch, issues);
         if (volume < SoundEffect.MIN_VOLUME || volume > SoundEffect.MAX_VOLUME) {
             issues.add(path + ".volume: " + volume + " is outside 0.0-1.0 - it will be clamped");
