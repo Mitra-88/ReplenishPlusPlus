@@ -38,7 +38,8 @@ maxReplantsPerTick: 1024
 # dropped instead of piling up and lagging the server. (Minimum 256)
 maxReplantsQueued: 4096
 
-# Check GitHub for a new version on startup and tell admins?
+# Check Modrinth for a new version on startup and tell admins?
+# Falls back to GitHub if Modrinth can't be reached.
 # Only read on startup - /rpp reload won't apply changes to this.
 checkUpdates: true
 
