@@ -26,6 +26,7 @@ public final class Messages {
             Map.entry("toggle.global-on", "<gray>Global replanting <green>on</green> <dark_gray>· <gray>everyone's crops replant again."),
             Map.entry("toggle.global-off", "<gray>Global replanting <red>off</red> <dark_gray>· <gray>nobody's crops replant."),
             Map.entry("toggle.global-not-saved", "<yellow>config.yml looks broken, so this wasn't saved. Fix the file and run /rpp reload, or it resets on restart."),
+            Map.entry("toggle.global-not-written", "<yellow>Global setting changed, but config.yml couldn't be written <dark_gray>· <gray>the change resets on restart."),
             Map.entry("pad.given", "<gray>Here's a pad <dark_gray>· <gray>place it, step on it, warp. Sneak-right-click it to set where it goes."),
             Map.entry("pad.placed", "<gray>Pad placed <dark_gray>· <gray>sneak-right-click it to set where it warps you."),
             Map.entry("pad.picked-up", "<green>Pad picked up."),
@@ -36,7 +37,9 @@ public final class Messages {
             Map.entry("pad.renamed", "<gray>Pad renamed to <yellow><name><gray>."),
             Map.entry("pad.name-cleared", "<gray>Pad name cleared."),
             Map.entry("pad.name-prompt", "<gray>Type the new name in chat <dark_gray>(<gray>empty message clears it<dark_gray>)<gray>."),
+            Map.entry("pad.arrival-blocked", "<red>The pad's arrival space is blocked <dark_gray>· <gray>clear the blocks above it."),
             Map.entry("pad.limit", "<red>Pad limit reached <dark_gray>(<white><limit><red><dark_gray>)<red>. Pick some up first."),
+            Map.entry("pad.occupied", "<red>There's already a pad here <dark_gray>· <gray>pick it up before placing a new one."),
             Map.entry("pad.warped", "<gray>Warped to <yellow><pad><gray>."),
             Map.entry("update.available", "<yellow>Replenish++ <gold>v<latest> <yellow>is out! <dark_gray>(<gray>you're on <white>v<current><dark_gray>)"),
             Map.entry("menu.main", """
