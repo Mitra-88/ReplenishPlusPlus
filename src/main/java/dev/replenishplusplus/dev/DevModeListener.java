@@ -25,7 +25,7 @@ public final class DevModeListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
-        devMode.onCropPlaced(event.getBlockPlaced());
+        devMode.onCropPlaced(event.getPlayer().getUniqueId(), event.getBlockPlaced());
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -51,12 +51,12 @@ public final class DevModeListener implements Listener {
         event.setCancelled(true);
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
         devMode.onSparkCommand(event.getMessage(), event.getPlayer().getUniqueId());
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onConsoleCommand(ServerCommandEvent event) {
         devMode.onSparkCommand(event.getCommand(), null);
     }
