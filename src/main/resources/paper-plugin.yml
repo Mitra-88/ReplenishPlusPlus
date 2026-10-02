@@ -2,7 +2,7 @@ name: ReplenishPlusPlus
 main: dev.replenishplusplus.ReplenishPlusPlus
 version: "${project.version}"
 api-version: "26.3"
-description: "Auto-replant for Paper/Purpur. Break a crop, it goes right back in the ground. Replenish from Hypixel SkyBlock, but for your own server :)"
+description: "Auto-replant crops on Paper/Purpur servers, inspired by Hypixel SkyBlock's Replenish enchantment. Break a crop and it replants itself. Supports wheat, carrots, potatoes, nether wart, cocoa and beetroot, with direct pickup and lag-friendly replanting."
 authors: [ "Mitra-88" ]
 website: "https://github.com/Mitra-88/ReplenishPlusPlus"
 
