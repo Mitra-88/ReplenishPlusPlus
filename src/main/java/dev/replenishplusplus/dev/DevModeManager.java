@@ -5,9 +5,11 @@ import dev.replenishplusplus.config.ConfigCache;
 import dev.replenishplusplus.config.Messages;
 import dev.replenishplusplus.crop.CropType;
 import dev.replenishplusplus.crop.HarvestTool;
+import dev.replenishplusplus.util.SeedIndex;
 import dev.replenishplusplus.util.TextUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -171,22 +173,19 @@ public final class DevModeManager {
     }
 
     public void onSparkCommand(String raw, UUID actor) {
+        SparkAction action = parseSparkCommand(raw);
+        if (action == SparkAction.OTHER) return;
+        if (actor != null && !enabled.contains(actor)) return;
+        if (action == SparkAction.STOP || (action == SparkAction.TOGGLE && counting)) {
+            stopCounting();
+            return;
+        }
         if (!plugin.getConfigCache().dev().harvestCounter()) return;
-        switch (parseSparkCommand(raw)) {
-            case START -> {
-                startCounting(actor);
-                scheduleAutoStop(parseProfilerDurationSeconds(raw));
+        switch (action) {
+            case START, TOGGLE -> {
+                if (startCounting(actor)) scheduleAutoStop(parseProfilerDurationSeconds(raw));
             }
-            case STOP -> stopCounting();
-            case TOGGLE -> {
-                if (counting) {
-                    stopCounting();
-                } else {
-                    startCounting(actor);
-                    scheduleAutoStop(parseProfilerDurationSeconds(raw));
-                }
-            }
-            case OTHER -> {}
+            case STOP, OTHER -> {}
         }
     }
 
@@ -218,10 +217,10 @@ public final class DevModeManager {
         if (raw == null) return 0;
         String command = raw.trim();
         int offset = !command.isEmpty() && command.charAt(0) == '/' ? 1 : 0;
-        if (command.length() - offset < 20 || !command.regionMatches(true, offset, "spark profiler start", 0, 20)) {
+        if (command.length() - offset < 14 || !command.regionMatches(true, offset, "spark profiler", 0, 14)) {
             return 0;
         }
-        int cursor = offset + 20;
+        int cursor = offset + 14;
         while (cursor < command.length()) {
             while (cursor < command.length() && (command.charAt(cursor) == ' ' || command.charAt(cursor) == '\t')) cursor++;
             int tokenStart = cursor;
@@ -229,8 +228,14 @@ public final class DevModeManager {
             if (tokenStart == cursor) break;
             String token = command.substring(tokenStart, cursor);
             if (token.equalsIgnoreCase("--timeout")) continue;
+            if (token.equalsIgnoreCase("stop")) return 0;
             if (isDigits(token)) {
-                long seconds = Long.parseLong(token);
+                long seconds;
+                try {
+                    seconds = Long.parseLong(token);
+                } catch (NumberFormatException overflow) {
+                    return MAX_PROFILER_SECONDS;
+                }
                 return seconds > 0 ? Math.min(seconds, MAX_PROFILER_SECONDS) : 0;
             }
         }
@@ -246,8 +251,8 @@ public final class DevModeManager {
         return true;
     }
 
-    private void startCounting(UUID actor) {
-        if (counting) return;
+    private boolean startCounting(UUID actor) {
+        if (counting) return false;
         counting = true;
         reportActor = actor;
         Arrays.fill(windowByCrop, 0);
@@ -259,6 +264,7 @@ public final class DevModeManager {
         announce(reportActor, Messages.prefixedRaw(
                 "<gradient:#FFD700:#FF5555>Harvest tracking started</gradient><gray> - you had <white>"
                         + String.format(Locale.ROOT, "%,d", totalHarvests) + "<gray> crops before this window."));
+        return true;
     }
 
     private void stopCounting() {
@@ -367,7 +373,7 @@ public final class DevModeManager {
 
     private void startTaskIfIdle() {
         if (tickTask != null) return;
-        tickTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::clearTick, CLEAR_TASK_PERIOD_TICKS, CLEAR_TASK_PERIOD_TICKS);
+        tickTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::devTick, CLEAR_TASK_PERIOD_TICKS, CLEAR_TASK_PERIOD_TICKS);
     }
 
     private void stopTaskIfIdle() {
@@ -377,16 +383,19 @@ public final class DevModeManager {
         }
     }
 
-    private void clearTick() {
-        if (!plugin.getConfigCache().dev().inventoryClear()) return;
+    private void devTick() {
+        ConfigCache.DevOptions dev = plugin.getConfigCache().dev();
         for (UUID id : enabled) {
             Player player = Bukkit.getPlayer(id);
-            if (player != null) clearIfNearlyFull(player);
+            if (player == null) continue;
+            if (player.isDead() || player.getGameMode() == GameMode.SPECTATOR) continue;
+            if (dev.inventoryClear()) clearIfNearlyFull(player);
+            if (dev.fastGrowth()) growField(player);
         }
     }
 
-    public void onCropPlaced(Block block) {
-        if (enabled.isEmpty() || !plugin.getConfigCache().dev().fastGrowth()) return;
+    public void onCropPlaced(UUID placer, Block block) {
+        if (enabled.isEmpty() || !enabled.contains(placer) || !plugin.getConfigCache().dev().fastGrowth()) return;
         if (!CROP_MATERIALS.contains(block.getType())) return;
         BlockData data = block.getBlockData();
         if (!(data instanceof Ageable ageable) || ageable.getAge() >= ageable.getMaximumAge()) return;
@@ -400,11 +409,13 @@ public final class DevModeManager {
         int baseY = base.getBlockY();
         int baseZ = base.getBlockZ();
         World world = player.getWorld();
-        for (int dy = -GROWTH_Y_RANGE; dy <= GROWTH_Y_RANGE; dy++) {
+        int fromY = Math.max(world.getMinHeight(), baseY - GROWTH_Y_RANGE);
+        int toY = Math.min(world.getMaxHeight() - 1, baseY + GROWTH_Y_RANGE);
+        for (int y = fromY; y <= toY; y++) {
             for (int dx = -GROWTH_RADIUS; dx <= GROWTH_RADIUS; dx++) {
                 for (int dz = -GROWTH_RADIUS; dz <= GROWTH_RADIUS; dz++) {
-                    if (!CROP_MATERIALS.contains(world.getType(baseX + dx, baseY + dy, baseZ + dz))) continue;
-                    Block block = world.getBlockAt(baseX + dx, baseY + dy, baseZ + dz);
+                    if (!CROP_MATERIALS.contains(world.getType(baseX + dx, y, baseZ + dz))) continue;
+                    Block block = world.getBlockAt(baseX + dx, y, baseZ + dz);
                     BlockData data = block.getBlockData();
                     if (!(data instanceof Ageable ageable) || ageable.getAge() >= ageable.getMaximumAge()) continue;
                     ageable.setAge(ageable.getMaximumAge());
@@ -422,6 +433,7 @@ public final class DevModeManager {
         }
         CropType crop = lastCrop.get(player.getUniqueId());
         int seedsKept = 0;
+        boolean mutated = false;
         for (int i = 0; i < STORAGE_SIZE; i++) {
             ItemStack item = inventory.getItem(i);
             if (item == null || item.getType().isAir()) continue;
@@ -432,18 +444,22 @@ public final class DevModeManager {
                 if (keepHere <= 0) {
                     totalCleared += item.getAmount();
                     inventory.setItem(i, null);
+                    mutated = true;
                     continue;
                 }
                 if (keepHere < item.getAmount()) {
                     totalCleared += item.getAmount() - keepHere;
                     item.setAmount(keepHere);
+                    mutated = true;
                 }
                 seedsKept += keepHere;
                 continue;
             }
             totalCleared += item.getAmount();
             inventory.setItem(i, null);
+            mutated = true;
         }
+        if (mutated) SeedIndex.invalidate(player);
     }
 
     private static boolean isKeptSeed(Material type, CropType crop) {
