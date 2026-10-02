@@ -189,8 +189,9 @@ public final class PadMenus {
                 (current ? AQUA + "<bold>" : "<white>") + "<name>" + (current ? END : ""),
                 Placeholder.unparsed("name", PadListener.label(pad))));
         meta.lore(List.of(
-                Messages.MINI_MESSAGE.deserialize("<gray>" + pad.key().world() + " <dark_gray>· <gray>"
-                        + pad.key().x() + ", " + pad.key().y() + ", " + pad.key().z()),
+                Messages.MINI_MESSAGE.deserialize("<gray><world> <dark_gray>· <gray>"
+                        + pad.key().x() + ", " + pad.key().y() + ", " + pad.key().z(),
+                        Placeholder.unparsed("world", pad.key().world())),
                 Messages.MINI_MESSAGE.deserialize(current
                         ? AQUA + "Currently selected" + END
                         : "<dark_gray>Click to warp here")));
