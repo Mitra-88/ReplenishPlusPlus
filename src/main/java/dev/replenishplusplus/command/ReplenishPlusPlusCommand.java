@@ -24,11 +24,17 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 public final class ReplenishPlusPlusCommand {
 
@@ -113,7 +119,20 @@ public final class ReplenishPlusPlusCommand {
             return;
         }
         plugin.getConfig().set("enabled", nowEnabled);
-        plugin.saveConfig();
+        Path tmpPath = plugin.getDataFolder().toPath().resolve("config.yml.tmp");
+        Path targetPath = plugin.getDataFolder().toPath().resolve("config.yml");
+        try {
+            plugin.getConfig().save(tmpPath.toFile());
+            try {
+                Files.move(tmpPath, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ignored) {
+                Files.move(tmpPath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Could not save config.yml", e);
+            sender.sendMessage(Messages.prefixed("toggle.global-not-written"));
+            tmpPath.toFile().delete();
+        }
     }
 
     private void handleDevToggle(CommandSender sender) {
@@ -168,7 +187,12 @@ public final class ReplenishPlusPlusCommand {
             }
             sb.append("\n");
         }
-        sb.append("<gray>Your config.yml changes are now live.\n\n");
+        boolean applied = issues.stream().noneMatch(issue -> issue.contains(ReplenishPlusPlus.KEPT_SETTINGS_MARKER));
+        if (applied) {
+            sb.append("<gray>Your config.yml changes are now live.\n\n");
+        } else {
+            sb.append("<yellow>Nothing was applied <dark_gray>· <gray>your previous settings are still active.\n\n");
+        }
         sb.append(Messages.LINE);
 
         send(sender, sb.toString());
