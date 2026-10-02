@@ -18,12 +18,17 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +47,7 @@ public final class TeleportPadManager {
     private final NamespacedKey displayKey;
     private final Map<String, TeleportPad> pads = new HashMap<>();
     private final Map<BlockKey, UUID> displayIds = new HashMap<>();
+    private BukkitTask pendingSave;
 
     public TeleportPadManager(ReplenishPlusPlus plugin) {
         this.plugin = plugin;
@@ -191,12 +197,30 @@ public final class TeleportPadManager {
         String worldName = chunk.getWorld().getName();
         int chunkX = chunk.getX();
         int chunkZ = chunk.getZ();
+        World world = chunk.getWorld();
+        List<BlockKey> orphans = new ArrayList<>();
         for (TeleportPad pad : pads.values()) {
             BlockKey key = pad.key();
             if (key.world().equals(worldName) && (key.x() >> 4) == chunkX && (key.z() >> 4) == chunkZ) {
-                spawnDisplay(pad);
+                if (world.getBlockAt(key.x(), key.y(), key.z()).getType() != Material.END_PORTAL_FRAME) {
+                    orphans.add(key);
+                } else {
+                    spawnDisplay(pad);
+                }
             }
         }
+        if (orphans.isEmpty()) return;
+        Set<BlockKey> removedKeys = Set.copyOf(orphans);
+        for (TeleportPad pad : List.copyOf(pads.values())) {
+            if (pad.destination() != null && removedKeys.contains(pad.destination())) {
+                pads.put(pad.key().serialize(), new TeleportPad(pad.key(), pad.owner(), pad.iconId(), pad.name(), null, pad.arrival()));
+            }
+        }
+        for (BlockKey key : orphans) {
+            pads.remove(key.serialize());
+            removeDisplay(key);
+        }
+        save();
     }
 
     public void pickUp(Player player, TeleportPad pad) {
@@ -238,7 +262,17 @@ public final class TeleportPadManager {
     }
 
     private void load() {
+        try {
+            if (Files.deleteIfExists(file().toPath().resolveSibling("pads.yml.tmp"))) {
+                plugin.getLogger().warning("[Pads] Removed leftover pads.yml.tmp from an interrupted save.");
+            }
+        } catch (IOException _) {
+        }
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file());
+        File padsFile = file();
+        if (padsFile.exists() && padsFile.length() > 0 && yaml.get("pads") == null) {
+            plugin.getLogger().warning("[Pads] pads.yml exists but could not be parsed, it will be overwritten on the next pad change");
+        }
         int broken = 0;
         for (Map<?, ?> entry : yaml.getMapList("pads")) {
             Object keyRaw = entry.get("key");
@@ -274,6 +308,22 @@ public final class TeleportPadManager {
     }
 
     public void save() {
+        if (pendingSave != null) return;
+        pendingSave = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            pendingSave = null;
+            saveNow();
+        }, 1L);
+    }
+
+    public void forceSave() {
+        if (pendingSave != null) {
+            pendingSave.cancel();
+            pendingSave = null;
+        }
+        saveNow();
+    }
+
+    private void saveNow() {
         List<Map<String, Object>> list = new ArrayList<>();
         for (TeleportPad pad : pads.values()) {
             Map<String, Object> entry = new LinkedHashMap<>();
@@ -287,10 +337,21 @@ public final class TeleportPadManager {
         }
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("pads", list);
+        Path target = file().toPath();
+        Path tmp = target.resolveSibling("pads.yml.tmp");
         try {
-            yaml.save(file());
+            yaml.save(tmp.toFile());
+            try {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             plugin.getLogger().warning("[Pads] Could not save pads.yml: " + e.getMessage());
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException _) {
+            }
         }
     }
 
