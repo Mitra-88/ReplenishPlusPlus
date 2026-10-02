@@ -11,6 +11,7 @@ own license, and that license governs its code.
 - Kyori adventure (adventure-api, adventure-key, adventure-text-minimessage),
   MIT License. https://github.com/KyoriPowered/adventure
 - Mojang Brigadier, MIT License. https://github.com/Mojang/brigadier
+- Gson, Apache License 2.0. https://github.com/google/gson
 - JOML, MIT License. https://github.com/JOML-CI/JOML
 - JetBrains Annotations, Apache License 2.0.
   https://github.com/JetBrains/java-annotations
