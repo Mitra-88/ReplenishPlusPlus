@@ -21,6 +21,7 @@ toggle:
   global-on: "<gray>Global replanting <green>on</green> <dark_gray>· <gray>everyone's crops replant again."
   global-off: "<gray>Global replanting <red>off</red> <dark_gray>· <gray>nobody's crops replant."
   global-not-saved: "<yellow>config.yml looks broken, so this wasn't saved. Fix the file and run /rpp reload, or it resets on restart."
+  global-not-written: "<yellow>Global setting changed, but config.yml couldn't be written <dark_gray>· <gray>the change resets on restart."
 
 # Teleport Pads
 pad:
@@ -35,6 +36,8 @@ pad:
   name-cleared: "<gray>Pad name cleared."
   name-prompt: "<gray>Type the new name in chat <dark_gray>(<gray>empty message clears it<dark_gray>)<gray>."
   limit: "<red>Pad limit reached <dark_gray>(<white><limit><red><dark_gray>)<red>. Pick some up first."
+  occupied: "<red>There's already a pad here <dark_gray>· <gray>pick it up before placing a new one."
+  arrival-blocked: "<red>The pad's arrival space is blocked <dark_gray>· <gray>clear the blocks above it."
   warped: "<gray>Warped to <yellow><pad><gray>."
 
 # Ops with the update permission.
