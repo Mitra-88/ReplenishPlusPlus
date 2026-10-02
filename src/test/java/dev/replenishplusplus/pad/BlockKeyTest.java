@@ -14,6 +14,12 @@ class BlockKeyTest {
     }
 
     @Test
+    void worldNameWithSemicolonRoundTrips() {
+        BlockKey key = new BlockKey("a;b", 1, 2, 3);
+        assertEquals(key, BlockKey.parse(key.serialize()));
+    }
+
+    @Test
     void malformedKeysParseToNull() {
         assertNull(BlockKey.parse(null));
         assertNull(BlockKey.parse(""));
