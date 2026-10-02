@@ -21,6 +21,7 @@ class MessagesTest {
                 "toggle.global-on",
                 "toggle.global-off",
                 "toggle.global-not-saved",
+                "toggle.global-not-written",
                 "pad.given",
                 "pad.placed",
                 "pad.picked-up",
@@ -32,6 +33,8 @@ class MessagesTest {
                 "pad.name-cleared",
                 "pad.name-prompt",
                 "pad.limit",
+                "pad.occupied",
+                "pad.arrival-blocked",
                 "pad.warped",
                 "update.available"}) {
             String text = Messages.text(key);
