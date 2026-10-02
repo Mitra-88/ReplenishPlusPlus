@@ -21,7 +21,7 @@ If you ever farmed on Hypixel SkyBlock, you already know the idea, it's Replenis
 
 ## Install
 
-1. Grab the jar from [Releases](https://github.com/Mitra-88/ReplenishPlusPlus/releases) or the Actions tab if you like living on dev builds
+1. Grab the jar from [Modrinth](https://modrinth.com/plugin/replenishplusplus), [Releases](https://github.com/Mitra-88/ReplenishPlusPlus/releases) (using Modrinth is recommended), or the Actions tab if you like living on dev builds
 2. Drop it in `plugins/`
 3. Start the server
 4. (Optional) Customize `plugins/ReplenishPlusPlus/config.yml`, the default settings work fine as-is.
@@ -137,7 +137,8 @@ maxReplantsPerTick: 1024
 # dropped instead of piling up and lagging the server. (Minimum 256)
 maxReplantsQueued: 4096
 
-# Check GitHub for a new version on startup and tell admins?
+# Check Modrinth for a new version on startup and tell admins?
+# Falls back to GitHub if Modrinth can't be reached.
 # Only read on startup - /rpp reload won't apply changes to this.
 checkUpdates: true
 
