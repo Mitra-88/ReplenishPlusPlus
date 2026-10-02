@@ -9,6 +9,7 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -73,6 +74,12 @@ public final class PadListener implements Listener {
     public void onPlace(BlockPlaceEvent event) {
         if (!pads.isPadItem(event.getItemInHand())) return;
         Player player = event.getPlayer();
+        TeleportPad existing = pads.at(event.getBlockPlaced());
+        if (existing != null) {
+            event.setCancelled(true);
+            send(player, "pad.occupied");
+            return;
+        }
         if (pads.countOwned(player.getUniqueId()) >= TeleportPadManager.MAX_PADS) {
             event.setCancelled(true);
             send(player, "pad.limit", Placeholder.unparsed("limit", String.valueOf(TeleportPadManager.MAX_PADS)));
@@ -86,8 +93,14 @@ public final class PadListener implements Listener {
     public void onPlaceCommit(BlockPlaceEvent event) {
         TeleportPad pad = pendingPlacements.remove(event);
         if (pad == null || event.isCancelled()) return;
-        pads.place(pad);
-        send(event.getPlayer(), "pad.placed");
+        if (event.getBlockPlaced().getType() != Material.END_PORTAL_FRAME) return;
+        if (pads.place(pad)) {
+            send(event.getPlayer(), "pad.placed");
+        } else {
+            event.getBlockPlaced().setType(Material.AIR);
+            pads.givePadItem(event.getPlayer());
+            send(event.getPlayer(), "pad.limit", Placeholder.unparsed("limit", String.valueOf(TeleportPadManager.MAX_PADS)));
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -109,7 +122,7 @@ public final class PadListener implements Listener {
         send(event.getPlayer(), "pad.picked-up");
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND || event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block block = event.getClickedBlock();
@@ -136,6 +149,7 @@ public final class PadListener implements Listener {
 
     private void warp(Player player, TeleportPad pad) {
         if (cooldownActive(player)) return;
+        warpCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
         TeleportPad destination = pads.get(pad.destination());
         if (destination == null) {
             pads.clearDestination(pad.key());
@@ -143,20 +157,29 @@ public final class PadListener implements Listener {
             PadMenus.openDestinations(player, pad, pads.ownedBy(player.getUniqueId()), 0);
             return;
         }
-        World world = Bukkit.getWorld(destination.key().world());
+        BlockKey destKey = destination.key();
+        World world = Bukkit.getWorld(destKey.world());
         if (world == null) {
             send(player, "pad.destination-gone");
             return;
         }
-        Block block = world.getBlockAt(destination.key().x(), destination.key().y(), destination.key().z());
-        if (block.getType() != Material.END_PORTAL_FRAME) {
-            pads.clearDestination(pad.key());
-            send(player, "pad.destination-gone");
-            PadMenus.openDestinations(player, pad, pads.ownedBy(player.getUniqueId()), 0);
-            return;
-        }
-        Location target = block.getLocation().add(0.5, 1.0, 0.5);
+        Location target = new Location(world, destKey.x() + 0.5, destKey.y() + 1.0, destKey.z() + 0.5);
         Location current = player.getLocation();
+        if (world.isChunkLoaded(destKey.x() >> 4, destKey.z() >> 4)) {
+            Block block = world.getBlockAt(destKey.x(), destKey.y(), destKey.z());
+            if (block.getType() != Material.END_PORTAL_FRAME) {
+                pads.clearDestination(pad.key());
+                send(player, "pad.destination-gone");
+                PadMenus.openDestinations(player, pad, pads.ownedBy(player.getUniqueId()), 0);
+                return;
+            }
+            Block feet = block.getRelative(BlockFace.UP);
+            Block head = feet.getRelative(BlockFace.UP);
+            if (!arrivalPassable(feet, world) || !arrivalPassable(head, world)) {
+                send(player, "pad.arrival-blocked");
+                return;
+            }
+        }
         if (destination.arrival().keepsPlayerFacing()) {
             if (Math.abs(current.getYaw() - 90.0f) > 0.01f || Math.abs(current.getPitch() - 5.4f) > 0.01f) {
                 target.setYaw(90.0f);
@@ -167,9 +190,14 @@ public final class PadListener implements Listener {
             target.setPitch(current.getPitch());
         }
         player.teleport(target);
-        warpCooldowns.put(player.getUniqueId(), System.currentTimeMillis());
         player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
         player.sendActionBar(Messages.prefixed("pad.warped", Placeholder.unparsed("pad", label(destination))));
+    }
+
+    private static boolean arrivalPassable(Block block, World world) {
+        Material type = block.getType();
+        if (type == Material.LAVA || type == Material.FIRE || type == Material.SWEET_BERRY_BUSH || type == Material.WITHER_ROSE) return false;
+        return block.getY() >= world.getMaxHeight() || block.isPassable();
     }
 
     static String label(TeleportPad pad) {
