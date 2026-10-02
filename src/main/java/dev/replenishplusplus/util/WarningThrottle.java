@@ -49,7 +49,7 @@ public final class WarningThrottle {
 
     private static void flushSuppressed(Plugin plugin, Level level, State state) {
         if (state.suppressedCount > 0) {
-            plugin.getLogger().log(level, "Suppressed {0} warnings since last report: {1}", new Object[] { state.suppressedCount, state.lastMessage });
+            plugin.getLogger().log(level, "Suppressed {0} warnings since last report (last reported: {1})", new Object[] { state.suppressedCount, state.lastMessage });
             state.suppressedCount = 0;
         }
     }
