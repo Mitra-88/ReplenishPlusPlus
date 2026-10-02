@@ -13,6 +13,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,10 +23,12 @@ public final class PadMenuListener implements Listener {
 
     private static final int PAGE_SIZE = 45;
     private static final int MAX_NAME_LENGTH = 32;
+    private static final long CLICK_COOLDOWN_MS = 1000L;
 
     private final ReplenishPlusPlus plugin;
     private final TeleportPadManager pads;
     private final Map<UUID, String> pendingNames = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> guiClickCooldowns = new HashMap<>();
 
     public PadMenuListener(ReplenishPlusPlus plugin, TeleportPadManager pads) {
         this.plugin = plugin;
@@ -39,6 +42,11 @@ public final class PadMenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         Inventory clicked = event.getClickedInventory();
         if (clicked == null || clicked.getHolder() != holder) return;
+
+        long now = System.currentTimeMillis();
+        Long lastClick = guiClickCooldowns.get(player.getUniqueId());
+        if (lastClick != null && now - lastClick < CLICK_COOLDOWN_MS) return;
+        guiClickCooldowns.put(player.getUniqueId(), now);
 
         switch (holder.type()) {
             case CONFIG -> handleConfig(player, holder, event.getSlot());
@@ -74,6 +82,7 @@ public final class PadMenuListener implements Listener {
                 PadListener.send(player, "pad.name-prompt");
             }
             case 22 -> {
+                pendingNames.remove(player.getUniqueId());
                 player.closeInventory();
                 pads.pickUp(player, pad);
                 PadListener.send(player, "pad.picked-up");
@@ -143,6 +152,7 @@ public final class PadMenuListener implements Listener {
     private void applyName(Player player, String padKey, String name) {
         TeleportPad pad = pads.get(BlockKey.parse(padKey));
         if (pad == null) return;
+        if (!pad.owner().equals(player.getUniqueId())) return;
         String clean = name.isEmpty() || "cancel".equalsIgnoreCase(name)
                 ? null
                 : name.substring(0, Math.min(MAX_NAME_LENGTH, name.length()));
@@ -157,5 +167,6 @@ public final class PadMenuListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         pendingNames.remove(event.getPlayer().getUniqueId());
+        guiClickCooldowns.remove(event.getPlayer().getUniqueId());
     }
 }
