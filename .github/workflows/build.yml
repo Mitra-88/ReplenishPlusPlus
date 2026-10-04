@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,13 +14,14 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up JDK 25 (Zulu)
         uses: actions/setup-java@a78ec39f1243adc9be41d35a49593a4c665a604c
@@ -28,20 +29,15 @@ jobs:
           distribution: 'zulu'
           java-version: '25'
 
-      - name: Cache local Maven repository
-        uses: actions/cache@3edfce9056124e459a23f683a21433670d47daca
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Build with Maven
-        run: mvn -B package --file pom.xml
-
-      - name: Read project version
-        id: version
-        run: echo "version=$(mvn -B -q help:evaluate -Dexpression=project.version -DforceStdout)" >> "$GITHUB_OUTPUT"
+      - name: Read metadata
+        id: meta
+        run: |
+          grep -E '^(version|minecraft_version|server_software|paper_api_version|spark_api_version|junit_bom_version|releaseDevBuilds)=' gradle.properties >> "$GITHUB_OUTPUT"
+          GRADLE_VERSION="$(sed -n 's/^distributionUrl=.*gradle-\(.*\)-[a-z]*\.zip/\1/p' gradle/wrapper/gradle-wrapper.properties)"
+          echo "gradle_version=${GRADLE_VERSION:-unknown}" >> "$GITHUB_OUTPUT"
         shell: bash
 
       - name: Get short SHA
@@ -49,8 +45,96 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         shell: bash
 
-      - name: Upload Artifact with version, build number, and short SHA
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: ReplenishPlusPlus-${{ steps.version.outputs.version }}+build.${{ github.run_number }}-${{ steps.sha.outputs.short_sha }}
-          path: target/*.jar
+          name: ReplenishPlusPlus-${{ github.ref_name }}-${{ steps.sha.outputs.short_sha }}
+          path: build/libs/
+
+      - name: Generate release notes
+        if: steps.meta.outputs.releaseDevBuilds == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          BRANCH: ${{ github.ref_name }}
+          MC_VERSION: ${{ steps.meta.outputs.minecraft_version }}
+          BASE_VERSION: ${{ steps.meta.outputs.version }}
+          SERVER_SOFTWARE: ${{ steps.meta.outputs.server_software }}
+          PAPER_API: ${{ steps.meta.outputs.paper_api_version }}
+          SPARK_API: ${{ steps.meta.outputs.spark_api_version }}
+          JUNIT_BOM: ${{ steps.meta.outputs.junit_bom_version }}
+          GRADLE_VERSION: ${{ steps.meta.outputs.gradle_version }}
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          BUILT_AT="$(date -u +'%Y-%m-%d %H:%M UTC')"
+
+          CHANGES="$(gh api "repos/${REPO}/compare/nightly...${GITHUB_SHA}" --jq '[.commits[] | select((.parents | length) == 1)] | reverse | .[:20][] | "* " + (.commit.message | split("\n")[0]) + " (`" + .sha[0:7] + "`")" 2>/dev/null || true)"
+          if [ -z "$CHANGES" ]; then
+            CHANGES="* No changes since last nightly"
+          fi
+
+          HASHES=""
+          for f in build/libs/*.jar; do
+            name="$(basename "$f")"
+            sha256="$(sha256sum "$f" | awk '{print $1}')"
+            sha512="$(sha512sum "$f" | awk '{print $1}')"
+            HASHES="${HASHES}* \`${name}\`\n  - SHA-256: \`${sha256}\`\n  - SHA-512: \`${sha512}\`\n"
+          done
+
+          {
+            echo "**Automated Nightly Build**"
+            echo "* **Minecraft Version:** \`${MC_VERSION}\`"
+            echo "* **Base Version:** \`${BASE_VERSION}\`"
+            echo "* **Build Number:** #${RUN_NUMBER}"
+            echo "* **Branch:** [\`${BRANCH}\`](https://github.com/${REPO}/tree/${GITHUB_SHA})"
+            echo "* **Commit:** [\`${SHORT_SHA}\`](https://github.com/${REPO}/commit/${GITHUB_SHA})"
+            echo "* **Built on:** ${BUILT_AT}"
+            echo "* **Java Runtime:** Java 25 (Zulu)"
+            echo "* **Gradle Version:** ${GRADLE_VERSION}"
+            echo ""
+            echo "## 📦 Dependencies"
+            echo "| Dependency | Version |"
+            echo "|------------|---------|"
+            echo "| Paper API | \`${PAPER_API}\` |"
+            echo "| Spark API | \`${SPARK_API}\` |"
+            echo "| Minecraft | \`${MC_VERSION}\` |"
+            echo "| JUnit BOM | \`${JUNIT_BOM}\` |"
+            echo "| Gradle | \`${GRADLE_VERSION}\` |"
+            echo "| Java | \`25 (Zulu)\` |"
+            echo ""
+            echo "## 📝 Recent Changes"
+            printf '%s\n' "$CHANGES"
+            echo ""
+            echo "## 🔐 File Hashes"
+            printf '%b\n' "$HASHES"
+            echo "> [!CAUTION]"
+            echo "> This build is automatically generated and unreleased. Features may be incomplete, unstable, or potentially breaking. Backup your configs before testing."
+          } > release_notes.md
+
+          cat release_notes.md
+
+      - name: Update nightly pre-release
+        if: steps.meta.outputs.releaseDevBuilds == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          MC_VERSION: ${{ steps.meta.outputs.minecraft_version }}
+        shell: bash
+        run: |
+          TAG="nightly"
+          TITLE="Nightly (mc${MC_VERSION}, build #${RUN_NUMBER})"
+
+          if gh release view "$TAG" -R "$REPO" > /dev/null 2>&1; then
+            gh release upload "$TAG" build/libs/*.jar --clobber -R "$REPO"
+            gh release edit "$TAG" --prerelease --title "$TITLE" --notes-file release_notes.md -R "$REPO"
+          else
+            gh release create "$TAG" build/libs/*.jar --prerelease --title "$TITLE" --notes-file release_notes.md --target "$SHA" -R "$REPO"
+          fi
