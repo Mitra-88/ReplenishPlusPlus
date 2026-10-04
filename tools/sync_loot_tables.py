@@ -363,15 +363,17 @@ def download_all(
     return paths
 
 
-def pom_version(repo: Path) -> str:
-    pom = repo / "pom.xml"
-    if not pom.is_file():
-        raise ToolError(f"{pom} not found, pass --mc or --repo")
+def gradle_mc_version(repo: Path) -> str:
+    props = repo / "gradle.properties"
+    if not props.is_file():
+        raise ToolError(f"{props} not found, pass --mc or --repo")
     match = re.search(
-        r"<mc\.version>([^<]+)</mc\.version>", pom.read_text(encoding="utf-8")
+        r"^minecraft_version\s*=\s*(\S+)",
+        props.read_text(encoding="utf-8"),
+        re.MULTILINE,
     )
     if not match:
-        raise ToolError(f"no <mc.version> in {pom}, pass --mc")
+        raise ToolError(f"no minecraft_version in {props}, pass --mc")
     return match.group(1).strip()
 
 
@@ -509,17 +511,17 @@ def resolve_downloads(
     args: argparse.Namespace, session: requests.Session, ui: Ui, repo: Path
 ) -> tuple[str, list[tuple[str, str, str]]]:
     if args.source == "vanilla":
-        mc = args.mc or pom_version(repo)
+        mc = args.mc or gradle_mc_version(repo)
         ui.step(1, f"source: {ui.cyan('vanilla')}, target Minecraft {ui.cyan(mc)}")
         url, sha = resolve_vanilla(args, mc, session, ui)
         return mc, [(url, sha, f"Minecraft {mc} server jar")]
     ui.step(1, f"source: {ui.cyan('PaperMC Fill API')}")
     version, paper_url, paper_sha = resolve_paper(args, session, ui)
     mc = args.mc or version
-    pom = pom_version(repo) if repo.joinpath("pom.xml").is_file() else None
-    if pom and pom != version:
+    target = gradle_mc_version(repo)
+    if target != version:
         ui.warn(
-            f"tables now describe MC {version} but the pom targets {pom}, consider --mc {pom}"
+            f"tables now describe MC {version} but gradle.properties targets {target}, consider updating gradle.properties or passing --mc"
         )
     ui.info(
         "the Paper jar is a patcher and carries no game data, the loot tables come from the matching vanilla jar"
@@ -566,7 +568,7 @@ def extract_tables(jar_path: Path, mc: str, staging: Path, ui: Ui) -> None:
             jar_version = version_info.get("name") or version_info.get("id")
             if jar_version != mc:
                 raise ToolError(
-                    f"the server jar is Minecraft {jar_version} but the target is {mc}, bump the pom or pass --mc"
+                    f"the server jar is Minecraft {jar_version} but the target is {mc}, bump gradle.properties or pass --mc"
                 )
             ui.ok(f"version check: {jar_version} == {mc}")
             staging.mkdir(parents=True, exist_ok=True)
@@ -620,7 +622,7 @@ def report(repo: Path, ui: Ui) -> None:
         )
         ui.line(
             ui.yellow(
-                "  3. mvn package, then commit code, tests, and loot_tables/ together"
+                "  3. gradlew build, then commit code, tests, and loot_tables/ together"
             )
         )
     else:
@@ -647,7 +649,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser = argparse.ArgumentParser(**kwargs)
     parser.add_argument(
         "--mc",
-        help="target Minecraft version (default: pom.xml mc.version for vanilla, newest for paper)",
+        help="target Minecraft version (default: gradle.properties minecraft_version for vanilla, newest for paper)",
     )
     parser.add_argument(
         "--source",

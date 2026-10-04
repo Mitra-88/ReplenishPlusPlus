@@ -160,23 +160,23 @@ class HttpErrorTextTest(unittest.TestCase):
         )
 
 
-class PomVersionTest(unittest.TestCase):
-    def test_reads_mc_version(self):
+class GradleMcVersionTest(unittest.TestCase):
+    def test_reads_minecraft_version(self):
         with tempfile.TemporaryDirectory() as scratch:
             repo = pathlib.Path(scratch)
-            (repo / "pom.xml").write_text(
-                "<project><mc.version>26.3</mc.version></project>", encoding="utf-8"
+            (repo / "gradle.properties").write_text(
+                "version=7.0.0\nminecraft_version=26.3\n", encoding="utf-8"
             )
-            self.assertEqual(tool.pom_version(repo), "26.3")
+            self.assertEqual(tool.gradle_mc_version(repo), "26.3")
 
-    def test_fails_without_pom_or_key(self):
+    def test_fails_without_file_or_key(self):
         with tempfile.TemporaryDirectory() as scratch:
             with self.assertRaises(tool.ToolError):
-                tool.pom_version(pathlib.Path(scratch))
+                tool.gradle_mc_version(pathlib.Path(scratch))
             repo = pathlib.Path(scratch)
-            (repo / "pom.xml").write_text("<project></project>", encoding="utf-8")
+            (repo / "gradle.properties").write_text("version=7.0.0\n", encoding="utf-8")
             with self.assertRaises(tool.ToolError):
-                tool.pom_version(repo)
+                tool.gradle_mc_version(repo)
 
 
 class VersionSlugsTest(unittest.TestCase):
