@@ -12,6 +12,10 @@ using a Hoe (Efficiency V, Fortune III, Unbreaking III).
 | Plugin build | `ReplenishPlusPlus-7.0.0+build.240-de522f8-mc26.3-papermc`                                                                                    |
 | Plugins      | AspectoftheVoid-3.0.0-mc26.2 · EssentialsX-2.22.1-dev+24-49a2f10 · ReplenishPlusPlus · spark-1.10.187-bukkit · worldedit-bukkit-7.4.6-beta-01 |
 | Memory       | 2048M heap, ZGC                                                                                                                               |
+| OS           | Windows 11 Pro (25H2)                                                                                                                         |
+| CPU          | AMD Ryzen 5 5600 (12 threads) @ 3.50 GHz                                                                                                      |
+| System RAM   | 32 GiB DDR4                                                                                                                                   |
+| Disk         | NVMe (PCIe 4.0)                                                                                                                               |
 
 <details>
 <summary>Full startup command</summary>
