@@ -7,6 +7,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockFormEvent;
+import org.bukkit.event.block.BlockGrowEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityInteractEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
@@ -26,6 +27,11 @@ public final class DevModeListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         devMode.onCropPlaced(event.getPlayer().getUniqueId(), event.getBlockPlaced());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockGrow(BlockGrowEvent event) {
+        devMode.onCropGrew(event);
     }
 
     @EventHandler(ignoreCancelled = true)

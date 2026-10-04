@@ -14,6 +14,9 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.block.BlockState;
+import org.bukkit.event.block.BlockGrowEvent;
+import org.bukkit.block.BlockState;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -47,6 +50,7 @@ public final class DevModeManager {
     private static final int STORAGE_SIZE = 36;
     private static final long CLEAR_TASK_PERIOD_TICKS = 20L;
     private static final int GROWTH_RADIUS = 12;
+    private static final double GROWTH_RADIUS_SQUARED = (double) GROWTH_RADIUS * GROWTH_RADIUS;
     private static final int GROWTH_Y_RANGE = 2;
     private static final long MAX_PROFILER_SECONDS = 86_400L;
 
@@ -69,6 +73,18 @@ public final class DevModeManager {
     private final NamespacedKey waterSpeedKey;
     private final AttributeModifier waterSpeedModifier;
     private final Set<UUID> enabled = new HashSet<>();
+    private ConfigCache configSnapshot;
+    private ConfigCache.DevOptions devOptions;
+
+    private ConfigCache.DevOptions dev() {
+        ConfigCache current = plugin.getConfigCache();
+        if (current != configSnapshot) {
+            configSnapshot = current;
+            devOptions = current.dev();
+        }
+        return devOptions;
+    }
+
     private final Map<UUID, CropType> lastCrop = new HashMap<>();
     private final long[] windowByCrop = new long[CropType.values().length];
     private final Map<Material, Long> windowToolUses = new HashMap<>();
@@ -98,7 +114,7 @@ public final class DevModeManager {
             return false;
         }
         enabled.add(id);
-        ConfigCache.DevOptions dev = plugin.getConfigCache().dev();
+        ConfigCache.DevOptions dev = dev();
         if (dev.fastWater()) {
             applyWaterSpeed(player);
         }
@@ -116,7 +132,7 @@ public final class DevModeManager {
 
     public void onRespawn(Player player) {
         if (!enabled.contains(player.getUniqueId())) return;
-        if (!plugin.getConfigCache().dev().fastWater()) return;
+        if (!dev().fastWater()) return;
         restoreWaterSpeed(player);
         applyWaterSpeed(player);
     }
@@ -146,11 +162,11 @@ public final class DevModeManager {
     }
 
     public boolean noIceActive() {
-        return anyActive() && plugin.getConfigCache().dev().noIce();
+        return anyActive() && dev().noIce();
     }
 
     public boolean noTrampleActive() {
-        return anyActive() && plugin.getConfigCache().dev().noTrample();
+        return anyActive() && dev().noTrample();
     }
 
     public boolean isDevTrampler(Player player) {
@@ -180,7 +196,7 @@ public final class DevModeManager {
             stopCounting();
             return;
         }
-        if (!plugin.getConfigCache().dev().harvestCounter()) return;
+        if (!dev().harvestCounter()) return;
         switch (action) {
             case START, TOGGLE -> {
                 if (startCounting(actor)) scheduleAutoStop(parseProfilerDurationSeconds(raw));
@@ -384,18 +400,17 @@ public final class DevModeManager {
     }
 
     private void devTick() {
-        ConfigCache.DevOptions dev = plugin.getConfigCache().dev();
+        ConfigCache.DevOptions dev = dev();
         for (UUID id : enabled) {
             Player player = Bukkit.getPlayer(id);
             if (player == null) continue;
             if (player.isDead() || player.getGameMode() == GameMode.SPECTATOR) continue;
             if (dev.inventoryClear()) clearIfNearlyFull(player);
-            if (dev.fastGrowth()) growField(player);
         }
     }
 
     public void onCropPlaced(UUID placer, Block block) {
-        if (enabled.isEmpty() || !enabled.contains(placer) || !plugin.getConfigCache().dev().fastGrowth()) return;
+        if (enabled.isEmpty() || !enabled.contains(placer) || !dev().fastGrowth()) return;
         if (!CROP_MATERIALS.contains(block.getType())) return;
         BlockData data = block.getBlockData();
         if (!(data instanceof Ageable ageable) || ageable.getAge() >= ageable.getMaximumAge()) return;
@@ -403,7 +418,28 @@ public final class DevModeManager {
         block.setBlockData(ageable, false);
     }
 
+    public void onCropGrew(BlockGrowEvent event) {
+        if (enabled.isEmpty() || !dev().fastGrowth()) return;
+        Location cropLocation = event.getBlock().getLocation();
+        Player near = null;
+        for (UUID id : enabled) {
+            Player player = Bukkit.getPlayer(id);
+            if (player == null || player.getWorld() != cropLocation.getWorld()) continue;
+            if (player.getLocation().distanceSquared(cropLocation) <= GROWTH_RADIUS_SQUARED) {
+                near = player;
+                break;
+            }
+        }
+        if (near == null) return;
+        BlockState newState = event.getNewState();
+        if (!(newState.getBlockData() instanceof Ageable ageable)) return;
+        if (ageable.getAge() >= ageable.getMaximumAge()) return;
+        ageable.setAge(ageable.getMaximumAge());
+        newState.setBlockData(ageable);
+    }
+
     private void growField(Player player) {
+        long start = System.nanoTime();
         Location base = player.getLocation();
         int baseX = base.getBlockX();
         int baseY = base.getBlockY();
@@ -411,15 +447,28 @@ public final class DevModeManager {
         World world = player.getWorld();
         int fromY = Math.max(world.getMinHeight(), baseY - GROWTH_Y_RANGE);
         int toY = Math.min(world.getMaxHeight() - 1, baseY + GROWTH_Y_RANGE);
-        for (int y = fromY; y <= toY; y++) {
-            for (int dx = -GROWTH_RADIUS; dx <= GROWTH_RADIUS; dx++) {
-                for (int dz = -GROWTH_RADIUS; dz <= GROWTH_RADIUS; dz++) {
-                    if (!CROP_MATERIALS.contains(world.getType(baseX + dx, y, baseZ + dz))) continue;
-                    Block block = world.getBlockAt(baseX + dx, y, baseZ + dz);
-                    BlockData data = block.getBlockData();
-                    if (!(data instanceof Ageable ageable) || ageable.getAge() >= ageable.getMaximumAge()) continue;
-                    ageable.setAge(ageable.getMaximumAge());
-                    block.setBlockData(ageable, false);
+        int minChunkX = (baseX - GROWTH_RADIUS) >> 4;
+        int maxChunkX = (baseX + GROWTH_RADIUS) >> 4;
+        int minChunkZ = (baseZ - GROWTH_RADIUS) >> 4;
+        int maxChunkZ = (baseZ + GROWTH_RADIUS) >> 4;
+        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                if (!world.isChunkLoaded(chunkX, chunkZ)) continue;
+                int fromX = Math.max(baseX - GROWTH_RADIUS, chunkX << 4);
+                int toX = Math.min(baseX + GROWTH_RADIUS, (chunkX << 4) + 15);
+                int fromZ = Math.max(baseZ - GROWTH_RADIUS, chunkZ << 4);
+                int toZ = Math.min(baseZ + GROWTH_RADIUS, (chunkZ << 4) + 15);
+                for (int x = fromX; x <= toX; x++) {
+                    for (int z = fromZ; z <= toZ; z++) {
+                        for (int y = fromY; y <= toY; y++) {
+                            if (!CROP_MATERIALS.contains(world.getType(x, y, z))) continue;
+                            Block block = world.getBlockAt(x, y, z);
+                            BlockData data = block.getBlockData();
+                            if (!(data instanceof Ageable ageable) || ageable.getAge() >= ageable.getMaximumAge()) continue;
+                            ageable.setAge(ageable.getMaximumAge());
+                            block.setBlockData(ageable, false);
+                        }
+                    }
                 }
             }
         }
