@@ -448,6 +448,11 @@ public final class ReplenishPlusPlusCommand {
                     .append(uc.getCurrentVersion()).append("<dark_gray>)\n");
         }
 
+        if (uc.isPreReleaseAvailable()) {
+            sb.append("  ").append(Messages.DOT).append("<gray>Pre-release <white>v").append(uc.getLatestPreRelease())
+                    .append(" <gray>is out too: ").append(uc.preReleaseDownloadLink()).append('\n');
+        }
+
         sb.append("\n<gray>Server details\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Server: <white>").append(plugin.getServer().getVersion()).append("\n");
         sb.append("  ").append(Messages.DOT).append("<gray>Java: <white>").append(System.getProperty("java.version"))

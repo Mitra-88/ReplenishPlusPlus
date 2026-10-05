@@ -103,53 +103,69 @@ class UpdateCheckerTest {
     }
 
     @Test
-    void extractModrinthVersionPicksTheNewestParseableNumber() {
-        String body = "[{\"name\":\"One\",\"version_number\":\"1.0.0-26.3\",\"game_versions\":[\"26.3\"]},"
-                + "{\"name\":\"Two\",\"version_number\":\"v2.0.0-beta.1+26.3\",\"game_versions\":[\"26.3\"]},"
-                + "{\"name\":\"Three\",\"version_number\":\"not-a-version\"}]";
-        assertEquals("v2.0.0-beta.1+26.3", UpdateChecker.extractModrinthVersion(body));
+    void extractModrinthVersionsPicksTheNewestReleaseAndPreRelease() {
+        String body = "[{\"name\":\"One\",\"version_number\":\"1.0.0-26.3\",\"version_type\":\"release\",\"game_versions\":[\"26.3\"]},"
+                + "{\"name\":\"Two\",\"version_number\":\"v2.0.0-beta.1+26.3\",\"version_type\":\"beta\",\"game_versions\":[\"26.3\"]},"
+                + "{\"name\":\"Three\",\"version_number\":\"not-a-version\",\"version_type\":\"release\"}]";
+        UpdateChecker.ModrinthVersions found = UpdateChecker.extractModrinthVersions(body);
+        assertEquals("1.0.0-26.3", found.release());
+        assertEquals("v2.0.0-beta.1+26.3", found.preRelease());
     }
 
     @Test
-    void extractModrinthVersionReadsTheLiveModrinthShape() {
+    void extractModrinthVersionsReadsTheLiveModrinthShape() {
         String body = "[{\"name\":\"Replenish++ 7.0.0 - 26.3\",\"version_number\":\"7.0.0-26.3\","
                 + "\"game_versions\":[\"26.3\"],\"loaders\":[\"paper\",\"purpur\"],\"version_type\":\"release\"}]";
-        assertEquals("7.0.0-26.3", UpdateChecker.extractModrinthVersion(body));
+        UpdateChecker.ModrinthVersions found = UpdateChecker.extractModrinthVersions(body);
+        assertEquals("7.0.0-26.3", found.release());
+        assertNull(found.preRelease());
     }
 
     @Test
-    void extractModrinthVersionIgnoresVersionNumberTextInsideOtherFields() {
+    void aNewerBetaNeverWinsTheReleaseSlot() {
+        String body = "[{\"version_number\":\"7.1.0-beta.1\",\"version_type\":\"beta\"},"
+                + "{\"version_number\":\"7.0.1-26.3\",\"version_type\":\"release\"}]";
+        UpdateChecker.ModrinthVersions found = UpdateChecker.extractModrinthVersions(body);
+        assertEquals("7.0.1-26.3", found.release());
+        assertEquals("7.1.0-beta.1", found.preRelease());
+    }
+
+    @Test
+    void extractModrinthVersionsIgnoresVersionNumberTextInsideOtherFields() {
         String body = "[{\"name\":\"fake \\\"version_number\\\":\\\"9.9.9\\\" here\","
                 + "\"changelog\":\"\\\"version_number\\\":\\\"8.8.8\\\"\","
-                + "\"version_number\":\"1.0.0-26.3\"}]";
-        assertEquals("1.0.0-26.3", UpdateChecker.extractModrinthVersion(body));
+                + "\"version_number\":\"1.0.0-26.3\",\"version_type\":\"release\"}]";
+        UpdateChecker.ModrinthVersions found = UpdateChecker.extractModrinthVersions(body);
+        assertEquals("1.0.0-26.3", found.release());
+        assertNull(found.preRelease());
     }
 
     @Test
     void extractorsReturnNullOnMalformedJson() {
-        assertNull(UpdateChecker.extractModrinthVersion("not json at all"));
+        assertNull(UpdateChecker.extractModrinthVersions("not json at all").release());
+        assertNull(UpdateChecker.extractModrinthVersions("not json at all").preRelease());
         assertNull(UpdateChecker.extractTagName("{{{"));
         assertNull(UpdateChecker.extractTagName("[\"an array\"]"));
     }
 
     @Test
-    void extractModrinthVersionReturnsNullWithoutUsableVersions() {
-        assertNull(UpdateChecker.extractModrinthVersion("[]"));
-        assertNull(UpdateChecker.extractModrinthVersion("[{\"version_number\":\"oops\"}]"));
-        assertNull(UpdateChecker.extractModrinthVersion(""));
+    void extractModrinthVersionsYieldNullWithoutUsableVersions() {
+        assertNull(UpdateChecker.extractModrinthVersions("[]").release());
+        assertNull(UpdateChecker.extractModrinthVersions("[{\"version_number\":\"oops\"}]").release());
+        assertNull(UpdateChecker.extractModrinthVersions("").release());
     }
 
     @Test
-    void extractModrinthVersionSkipsUnsafeVersionNumbers() {
-        String body = "[{\"version_number\":\"7.0.0'><click:open_url:'https://evil'>x\"},"
-                + "{\"version_number\":\"1.1.0-26.3\"}]";
-        assertEquals("1.1.0-26.3", UpdateChecker.extractModrinthVersion(body));
+    void extractModrinthVersionsSkipUnsafeVersionNumbers() {
+        String body = "[{\"version_number\":\"7.0.0'><click:open_url:'https://evil'>x\",\"version_type\":\"release\"},"
+                + "{\"version_number\":\"1.1.0-26.3\",\"version_type\":\"release\"}]";
+        assertEquals("1.1.0-26.3", UpdateChecker.extractModrinthVersions(body).release());
     }
 
     @Test
-    void extractModrinthVersionReturnsNullWhenOnlyCandidateIsUnsafe() {
-        assertNull(UpdateChecker.extractModrinthVersion(
-                "[{\"version_number\":\"7.0.0'><click:open_url:'https://evil'>x\"}]"));
+    void extractModrinthVersionsYieldNullWhenOnlyCandidateIsUnsafe() {
+        assertNull(UpdateChecker.extractModrinthVersions(
+                "[{\"version_number\":\"7.0.0'><click:open_url:'https://evil'>x\",\"version_type\":\"release\"}]").release());
     }
 
     @Test

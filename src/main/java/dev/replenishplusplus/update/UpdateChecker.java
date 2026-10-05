@@ -2,6 +2,7 @@ package dev.replenishplusplus.update;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import dev.replenishplusplus.compat.ServerVersionCheck;
@@ -59,6 +60,8 @@ public final class UpdateChecker {
     private volatile String  latestVersion   = "Unknown";
     private volatile Version latest;
     private volatile String  versionSlug;
+    private volatile String  latestPreRelease;
+    private volatile String  preReleaseSlug;
     private volatile boolean updateAvailable = false;
     private volatile boolean checkCompleted  = false;
     private volatile boolean checkFailed     = false;
@@ -80,6 +83,8 @@ public final class UpdateChecker {
     public boolean isCheckPending()    { return !checkCompleted; }
     public boolean isCheckFailed()     { return checkFailed; }
     public boolean isUpdateAvailable() { return updateAvailable; }
+    public boolean isPreReleaseAvailable() { return latestPreRelease != null; }
+    public String getLatestPreRelease()    { return latestPreRelease; }
 
     public synchronized void onCheckCompleted(Runnable action) {
         if (checkCompleted) {
@@ -107,6 +112,11 @@ public final class UpdateChecker {
 
     private String pageLabel() {
         return updateSource == Source.MODRINTH ? "modrinth.com/plugin/" + MODRINTH_SLUG : "github.com/" + REPO;
+    }
+
+    public String preReleaseDownloadLink() {
+        return "<aqua><click:open_url:'" + MODRINTH_PAGE + "/version/" + preReleaseSlug + "'><hover:show_text:'<gray>Click to open the pre-release page'>"
+                + "<u>modrinth.com/plugin/" + MODRINTH_SLUG + "</u></click>";
     }
 
     public void check() {
@@ -147,18 +157,25 @@ public final class UpdateChecker {
             fallbackToGitHub();
             return;
         }
-        String versionNumber = extractModrinthVersion(body);
-        if (versionNumber == null) {
+        ModrinthVersions found = extractModrinthVersions(body);
+        if (found.release() == null) {
             fallbackToGitHub();
             return;
         }
-        Version parsed = parseVersion(stripBuildMetadata(versionNumber));
+        Version parsed = parseVersion(stripBuildMetadata(found.release()));
         if (parsed == null) {
             fallbackToGitHub();
             return;
         }
+        if (found.preRelease() != null) {
+            Version preRelease = parseVersion(stripBuildMetadata(found.preRelease()));
+            if (preRelease != null && compare(preRelease, parsed) > 0) {
+                latestPreRelease = displayVersion(found.preRelease());
+                preReleaseSlug = found.preRelease();
+            }
+        }
         updateSource = Source.MODRINTH;
-        completeCheck(parsed, versionNumber);
+        completeCheck(parsed, found.release());
     }
 
     private void fallbackToGitHub() {
@@ -322,29 +339,41 @@ public final class UpdateChecker {
         return tag != null && tag.isJsonPrimitive() ? tag.getAsString() : null;
     }
 
-    static String extractModrinthVersion(String body) {
+    record ModrinthVersions(String release, String preRelease) {}
+
+    static ModrinthVersions extractModrinthVersions(String body) {
         JsonArray versions;
         try {
             versions = JsonParser.parseString(body).getAsJsonArray();
         } catch (IllegalStateException | JsonParseException error) {
-            return null;
+            return new ModrinthVersions(null, null);
         }
-        Version best = null;
-        String bestRaw = null;
+        String bestRelease = null;
+        Version bestReleaseParsed = null;
+        String bestPreRelease = null;
+        Version bestPreReleaseParsed = null;
         for (JsonElement element : versions) {
             if (!element.isJsonObject()) continue;
-            JsonElement field = element.getAsJsonObject().get("version_number");
-            if (field == null || !field.isJsonPrimitive()) continue;
-            String raw = field.getAsString();
+            JsonObject entry = element.getAsJsonObject();
+            JsonElement number = entry.get("version_number");
+            if (number == null || !number.isJsonPrimitive()) continue;
+            String raw = number.getAsString();
             if (!SAFE_VERSION_CHARS.matcher(raw).matches()) continue;
             Version parsed = parseVersion(stripBuildMetadata(raw));
             if (parsed == null) continue;
-            if (best == null || compare(parsed, best) > 0) {
-                best = parsed;
-                bestRaw = raw;
+            JsonElement type = entry.get("version_type");
+            boolean isRelease = type != null && type.isJsonPrimitive() && "release".equalsIgnoreCase(type.getAsString());
+            if (isRelease) {
+                if (bestReleaseParsed == null || compare(parsed, bestReleaseParsed) > 0) {
+                    bestReleaseParsed = parsed;
+                    bestRelease = raw;
+                }
+            } else if (bestPreReleaseParsed == null || compare(parsed, bestPreReleaseParsed) > 0) {
+                bestPreReleaseParsed = parsed;
+                bestPreRelease = raw;
             }
         }
-        return bestRaw;
+        return new ModrinthVersions(bestRelease, bestPreRelease);
     }
 
     static String stripBuildMetadata(String raw) {
