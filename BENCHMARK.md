@@ -1,89 +1,90 @@
 # BENCHMARK: ReplenishPlusPlus under load
 
-Measured live with spark during a 5min window of non-stop wheat farming, dev mode
-enabled (full-age replants, instant growth, auto inventory clear)
-using a Hoe (Efficiency V, Fortune III, Unbreaking III).
+One player farming flat-out for 5 minutes with dev mode on (full-age
+replants, instant growth, auto inventory clear), Netherite Hoe (Efficiency V,
+Fortune III, Unbreaking III), measured with spark.
+
+Offline profile of this exact run:
+[benchmark/default-jvm.sparkprofile](benchmark/default-jvm.sparkprofile)
 
 ## Setup
 
-|              |                                                                                                                                               |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server       | Paper 26.3-35-main@dd9d103 (2026-09-22T19:19:23Z), Minecraft 26.3, Java 25                                                                    |
-| Plugin build | `ReplenishPlusPlus-7.0.0+build.240-de522f8-mc26.3-papermc`                                                                                    |
-| Plugins      | AspectoftheVoid-3.0.0-mc26.2 · EssentialsX-2.22.1-dev+24-49a2f10 · ReplenishPlusPlus · spark-1.10.187-bukkit · worldedit-bukkit-7.4.6-beta-01 |
-| Memory       | 2048M heap, ZGC                                                                                                                               |
-| OS           | Windows 11 Pro (25H2)                                                                                                                         |
-| CPU          | AMD Ryzen 5 5600 (12 threads) @ 3.50 GHz                                                                                                      |
-| System RAM   | 32 GiB DDR4                                                                                                                                   |
-| Disk         | NVMe (PCIe 4.0)                                                                                                                               |
+|              |                                                                               |
+| ------------ | ----------------------------------------------------------------------------- |
+| Server       | Paper 26.3-151, Minecraft 26.3                                                |
+| Java         | 25.0.4.1 (Zulu25.36+205-CA, OpenJDK 64-Bit Server VM)                         |
+| Plugin build | `ReplenishPlusPlus-7.0.1+build.301-d5a73ce-mc26.3-papermc`                    |
+| Plugins      | EssentialsX · spark 1.10.189 · ReplenishPlusPlus                              |
+| Machine      | AMD Ryzen 5 5600 (6 cores / 12 threads) · 32 GiB DDR4 · NVMe · Windows 11 Pro |
+| JVM flags    | `-Xms2048M -Xmx2048M` (default G1, what most servers run)                     |
+
+## Results
+
+| Metric             | Value                                                     |
+| ------------------ | --------------------------------------------------------- |
+| Crops harvested    | **5,999** in 4m59s (**20.00/sec**, sustained)             |
+| Crops auto-cleared | 25,181 items                                              |
+| TPS                | 20.00 · 20.00 · 19.99 (1m / 5m / 15m)                     |
+| MSPT               | **median 0.92ms** · 95%ile 1.67 · max 19.0                |
+
+The plugin's own Harvest Report matched the profiler exactly and identified
+the tool.
+
+## What it cost
+
+**About 2% of one server thread** for one player farming flat-out, measured
+1.98% on the default JVM above. Quote this number: it is what real servers
+see, and it is the worst case.
+
+| Where the 2% goes                                                              | Share  |
+| ------------------------------------------------------------------------------ | ------ |
+| Paper writing the replanted block (heightmap, palette, client block sync, POI) | 1.28%  |
+| Replant queue chunk-loaded checks                                              | 0.38%  |
+| Dev mode (inventory clear, harvest counter)                                    | 0.18%  |
+| The plugin's own code (breaks, drops, seeds, pads)                             | ~0.15% |
+
+The biggest slice is Paper's code, not the plugin's: each replant is one
+`setBlockData` call, and the cost is vanilla block writing plus client sync.
+The plugin's own code never measured above ~0.2% in any capture, under any
+JVM.
+
+On a heavily JIT-tuned JVM the same workload reads as low as **0.16%**, but
+that is a per-boot best case, not a number users will see (see below).
+
+## How many players?
+
+Thread shares scale linearly with flat-out farmers:
+
+| Farmers | Thread share | Crops/sec |
+| ------- | ------------ | --------- |
+| 10      | ~20%         | ~200      |
+| 25      | ~50%         | ~500      |
+| 50      | ~100%        | ~1,000    |
+
+Treat these as ceilings: nobody sustains 20 crops/sec, players walk, idle,
+and wait for growth. TPS stayed at 20.00 and median MSPT under 1ms with one
+flat-out farmer. The plugin's own safety valve caps replants at 1,024 per
+tick (about 20,480 crops/sec) and drops beyond that with loud throttled
+warnings instead of lagging the server. A consumed seed is refunded whenever
+a replant itself fails; a queue-full drop stays silent by design.
+
+## Capture conditions
+
+The launch command changes the result, so only compare captures taken under
+the same command. Paper's block-write code contains methods the default JVM
+never fully JIT-compiles, which is why default setups read about 2%, every
+boot, deterministically. A tuned C2/ZGC command can push the read down to
+0.16%, but it is a per-boot race between the compiler finishing and the
+profiler running: tuned numbers land anywhere between 0.16% and 2%. To
+reproduce the fast state, farm for a few minutes before starting the
+profiler window, and drop `NmethodSweepActivity=1` from the tuned command to
+stop compiled code being flushed after GC cycles.
 
 <details>
-<summary>Full startup command</summary>
+<summary>The tuned command</summary>
 
 ```
 java -Xms2048M -Xmx2048M --add-modules jdk.incubator.vector -Dpaper.preferSparkPlugin=true -XX:+EnableDynamicAgentLoading -XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3 -XX:+UseZGC -XX:AllocatePrefetchStyle=1 -XX:-ZProactive -jar server.jar --nogui
 ```
 
 </details>
-
-## Results
-
-| Metric             | Value                                                     |
-| ------------------ | --------------------------------------------------------- |
-| Crops harvested    | **5,993** in 4m59s (**19.99/sec**, sustained, wheat only) |
-| Crops auto-cleared | 25,079 items                                              |
-| TPS                | 20.00 (1m) · 20.00 (5m) · 19.99 (15m)                     |
-| MSPT               | min 8.48 · **median 9.62** · 95%ile 11.4 · max 26.8       |
-| Process CPU        | 2.53% (1m) · 2.67% (15m)                                  |
-
-The plugin's own Harvest Report matched the profiler exactly (5,993 crops,
-25,079 cleared) and identified the tool: Netherite Hoe (Efficiency V, Fortune
-III, Unbreaking III).
-
-## What it cost the server thread
-
-The entire plugin accounted for **0.16%** of the server thread.
-
-| Path                                                | Share |
-| --------------------------------------------------- | ----- |
-| Break commit phase (`onBlockBreakCommit`)           | 0.07% |
-| Replant queue (`tick` → `replant` → `setBlockData`) | 0.05% |
-| Break decide phase (`prepareHarvest`)               | 0.02% |
-| Neighbor/client updates (`notifyAndUpdatePhysics`)  | 0.01% |
-| Chunk-loaded memo (`isChunkLoadedCached`)           | 0.01% |
-| Teleport pads (`onMove`)                            | 0.01% |
-| Dev mode (`clearTick`, report)                      | 0.01% |
-| Seed path (`hasSeed`, `consume`)                    | 0.00% |
-
-Inside the commit frame, the drop handoff is most of it (`addItem` 0.04%) and
-the pickup sound packet is another 0.01%. The decide phase is where the
-transcribed tables show up: `VanillaCropDrops.counts` and `binomialBonus` are
-in the tree at 0.00%, the vanilla loot-table + enchantment-map machinery is
-gone, and the only tool read left is `getEnchantmentLevel` at 0.00%.
-
-## How many players can it handle?
-
-One player farming flat-out costs **0.16% of one server thread**, about
-20 crops/sec. Scaling is linear while everyone farms non-stop, which never
-happens on a real server, so treat these as ceilings:
-
-| Concurrent farmers | Plugin share of one thread | Crops/sec | Zone      |
-| ------------------ | -------------------------- | --------- | --------- |
-| ~30                | ~5%                        | ~600      | Safe      |
-| ~75                | ~12%                       | ~1,500    | Moderate  |
-| ~150               | ~24%                       | ~3,000    | Caution   |
-| ~1,000+            | safety cap engaged         | ~20,480   | The valve |
-
-Notes on the zones:
-
-- **Safe** means the plugin is a rounding error even if every player farms
-  flat-out with zero breaks.
-- **Moderate** means worth a spark look on your hardware, still far from a
-  problem at 20 TPS.
-- **Caution** is where other server costs (chunk ticks, entities, network)
-  will almost certainly dominate before the plugin does.
-- The hard ceiling is the plugin's own safety valve: `maxReplantsPerTick`
-  1024 × 20 TPS ≈ 20,480 crops/sec. Past it, replants are deferred and
-  eventually dropped with loud throttled warnings instead of lagging the
-  server. A consumed seed is refunded whenever a replant itself fails; a
-  queue-full drop stays silent by design.
