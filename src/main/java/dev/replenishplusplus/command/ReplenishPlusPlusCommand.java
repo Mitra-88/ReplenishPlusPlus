@@ -131,7 +131,11 @@ public final class ReplenishPlusPlusCommand {
         } catch (IOException e) {
             plugin.getLogger().log(Level.SEVERE, "Could not save config.yml", e);
             sender.sendMessage(Messages.prefixed("toggle.global-not-written"));
-            tmpPath.toFile().delete();
+            try {
+                Files.deleteIfExists(tmpPath);
+            } catch (IOException cleanupFailed) {
+                plugin.getLogger().warning("Could not remove config.yml.tmp: " + cleanupFailed.getMessage());
+            }
         }
     }
 
@@ -346,6 +350,7 @@ public final class ReplenishPlusPlusCommand {
         }
         DoubleStatistic<StatisticWindow.CpuUsage> cpuProcess = spark.cpuProcess();
         DoubleStatistic<StatisticWindow.CpuUsage> cpuSystem = spark.cpuSystem();
+        if (cpuProcess == null || cpuSystem == null) return;
         double processLoad = cpuProcess.poll(StatisticWindow.CpuUsage.MINUTES_1) * 100.0;
         double systemLoad = cpuSystem.poll(StatisticWindow.CpuUsage.MINUTES_1) * 100.0;
         sb.append("  ").append(Messages.DOT).append("<gray>CPU (spark, 1m window): <white>process ")
