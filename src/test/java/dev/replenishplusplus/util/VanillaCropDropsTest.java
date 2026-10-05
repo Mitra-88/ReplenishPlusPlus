@@ -59,8 +59,8 @@ class VanillaCropDropsTest {
     private static int[][] vanillaBounds(CropType crop, int fortune) {
         return switch (crop) {
             case WHEAT, BEETROOTS -> new int[][] {{1, 1}, {1, 4 + fortune}};
-            case CARROTS -> new int[][] {{1, 4 + fortune}};
-            case POTATOES -> new int[][] {{1, 4 + fortune}, {0, 1}};
+            case CARROTS -> new int[][] {{2, 5 + fortune}};
+            case POTATOES -> new int[][] {{2, 5 + fortune}, {0, 1}};
             case NETHER_WART -> new int[][] {{2, 4 + fortune}};
             case COCOA -> new int[][] {{3, 3}};
         };
@@ -74,8 +74,8 @@ class VanillaCropDropsTest {
         double poisonVariance = POISONOUS_CHANCE * (1.0 - POISONOUS_CHANCE);
         return switch (crop) {
             case WHEAT, BEETROOTS -> new double[][] {{1.0, 0.0}, {1.0 + bonusMean, bonusVariance}};
-            case CARROTS -> new double[][] {{1.0 + bonusMean, bonusVariance}};
-            case POTATOES -> new double[][] {{1.0 + bonusMean, bonusVariance}, {POISONOUS_CHANCE, poisonVariance}};
+            case CARROTS -> new double[][] {{2.0 + bonusMean, bonusVariance}};
+            case POTATOES -> new double[][] {{2.0 + bonusMean, bonusVariance}, {POISONOUS_CHANCE, poisonVariance}};
             case NETHER_WART -> new double[][] {{3.0 + fortune / 2.0, wartVariance}};
             case COCOA -> new double[][] {{3.0, 0.0}};
         };
