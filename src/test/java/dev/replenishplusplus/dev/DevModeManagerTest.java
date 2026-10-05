@@ -39,6 +39,9 @@ class DevModeManagerTest {
         assertEquals(0L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start --timeout"));
         assertEquals(0L, DevModeManager.parseProfilerDurationSeconds("/spark tps"));
         assertEquals(0L, DevModeManager.parseProfilerDurationSeconds(null));
+        assertEquals(0L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start --only-ticks-over 100"));
+        assertEquals(0L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start --interval 4"));
+        assertEquals(120L, DevModeManager.parseProfilerDurationSeconds("/spark profiler start --interval 4 --timeout 120"));
     }
 
     @Test

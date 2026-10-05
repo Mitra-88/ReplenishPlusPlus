@@ -16,7 +16,6 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.BlockState;
 import org.bukkit.event.block.BlockGrowEvent;
-import org.bukkit.block.BlockState;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
@@ -197,12 +196,7 @@ public final class DevModeManager {
             return;
         }
         if (!dev().harvestCounter()) return;
-        switch (action) {
-            case START, TOGGLE -> {
-                if (startCounting(actor)) scheduleAutoStop(parseProfilerDurationSeconds(raw));
-            }
-            case STOP, OTHER -> {}
-        }
+        if (startCounting(actor)) scheduleAutoStop(parseProfilerDurationSeconds(raw));
     }
 
     static SparkAction parseSparkCommand(String raw) {
@@ -237,15 +231,21 @@ public final class DevModeManager {
             return 0;
         }
         int cursor = offset + 14;
+        boolean expectingTimeoutValue = false;
+        boolean rightAfterStart = false;
         while (cursor < command.length()) {
             while (cursor < command.length() && (command.charAt(cursor) == ' ' || command.charAt(cursor) == '\t')) cursor++;
             int tokenStart = cursor;
             while (cursor < command.length() && command.charAt(cursor) != ' ' && command.charAt(cursor) != '\t') cursor++;
             if (tokenStart == cursor) break;
             String token = command.substring(tokenStart, cursor);
-            if (token.equalsIgnoreCase("--timeout")) continue;
+            if (token.equalsIgnoreCase("--timeout")) {
+                expectingTimeoutValue = true;
+                rightAfterStart = false;
+                continue;
+            }
             if (token.equalsIgnoreCase("stop")) return 0;
-            if (isDigits(token)) {
+            if (isDigits(token) && (expectingTimeoutValue || rightAfterStart)) {
                 long seconds;
                 try {
                     seconds = Long.parseLong(token);
@@ -254,6 +254,8 @@ public final class DevModeManager {
                 }
                 return seconds > 0 ? Math.min(seconds, MAX_PROFILER_SECONDS) : 0;
             }
+            expectingTimeoutValue = false;
+            rightAfterStart = token.equalsIgnoreCase("start");
         }
         return 0;
     }
@@ -439,7 +441,6 @@ public final class DevModeManager {
     }
 
     private void growField(Player player) {
-        long start = System.nanoTime();
         Location base = player.getLocation();
         int baseX = base.getBlockX();
         int baseY = base.getBlockY();
