@@ -175,7 +175,7 @@ public final class PadListener implements Listener {
             }
             Block feet = block.getRelative(BlockFace.UP);
             Block head = feet.getRelative(BlockFace.UP);
-            if (!arrivalPassable(feet, world) || !arrivalPassable(head, world)) {
+            if (blocksArrival(feet, world) || blocksArrival(head, world)) {
                 send(player, "pad.arrival-blocked");
                 return;
             }
@@ -194,10 +194,10 @@ public final class PadListener implements Listener {
         player.sendActionBar(Messages.prefixed("pad.warped", Placeholder.unparsed("pad", label(destination))));
     }
 
-    private static boolean arrivalPassable(Block block, World world) {
+    private static boolean blocksArrival(Block block, World world) {
         Material type = block.getType();
-        if (type == Material.LAVA || type == Material.FIRE || type == Material.SWEET_BERRY_BUSH || type == Material.WITHER_ROSE) return false;
-        return block.getY() >= world.getMaxHeight() || block.isPassable();
+        if (type == Material.LAVA || type == Material.FIRE || type == Material.SWEET_BERRY_BUSH || type == Material.WITHER_ROSE) return true;
+        return block.getY() < world.getMaxHeight() && !block.isPassable();
     }
 
     static String label(TeleportPad pad) {

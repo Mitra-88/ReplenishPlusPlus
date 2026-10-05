@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -78,7 +79,7 @@ public final class TeleportPadManager {
         for (TeleportPad pad : pads.values()) {
             if (pad.owner().equals(owner)) owned.add(pad);
         }
-        owned.sort((a, b) -> a.key().serialize().compareTo(b.key().serialize()));
+        owned.sort(Comparator.comparing(pad -> pad.key().serialize()));
         return owned;
     }
 
@@ -261,7 +262,7 @@ public final class TeleportPadManager {
         return meta != null && meta.getPersistentDataContainer().has(padItemKey, PersistentDataType.BYTE);
     }
 
-    private void load() {
+    private YamlConfiguration loadYaml() {
         try {
             if (Files.deleteIfExists(file().toPath().resolveSibling("pads.yml.tmp"))) {
                 plugin.getLogger().warning("[Pads] Removed leftover pads.yml.tmp from an interrupted save.");
@@ -273,8 +274,12 @@ public final class TeleportPadManager {
         if (padsFile.exists() && padsFile.length() > 0 && yaml.get("pads") == null) {
             plugin.getLogger().warning("[Pads] pads.yml exists but could not be parsed, it will be overwritten on the next pad change");
         }
+        return yaml;
+    }
+
+    private void load() {
         int broken = 0;
-        for (Map<?, ?> entry : yaml.getMapList("pads")) {
+        for (Map<?, ?> entry : loadYaml().getMapList("pads")) {
             Object keyRaw = entry.get("key");
             Object ownerRaw = entry.get("owner");
             BlockKey key = keyRaw instanceof String s ? BlockKey.parse(s) : null;

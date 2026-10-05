@@ -20,7 +20,6 @@ public record CocoaCropInfo(
     public static int faceOrdinal(BlockFace face) {
         if (face == null) return 0;
         return switch (face) {
-            case NORTH -> 0;
             case EAST -> 1;
             case SOUTH -> 2;
             case WEST -> 3;

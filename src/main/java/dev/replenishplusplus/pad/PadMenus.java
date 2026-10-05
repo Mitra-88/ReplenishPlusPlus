@@ -171,11 +171,7 @@ public final class PadMenus {
     }
 
     private static ItemStack filler() {
-        return plain(Material.GRAY_STAINED_GLASS_PANE);
-    }
-
-    private static ItemStack plain(Material material) {
-        ItemStack item = new ItemStack(material);
+        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.empty());
         return finish(item, meta);
