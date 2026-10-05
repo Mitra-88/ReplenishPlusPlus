@@ -225,6 +225,7 @@ public final class ReplantQueue {
         if (info == null) {
             WarningThrottle.log(plugin, Level.WARNING, WarningThrottle.Category.AGE_DATA_MISSING,
                     () -> "No age data found for plant: " + material + ", skipping replant at " + describe(index));
+            handleReplantFailure(index);
             return;
         }
 
