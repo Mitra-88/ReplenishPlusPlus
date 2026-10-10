@@ -123,7 +123,16 @@ tasks.register<Copy>("agentSources") {
     description = "Unpacks compile-classpath dependency sources into agent_sources/src."
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     from(sourcesJarView.map { jars -> jars.map { zipTree(it) } })
-    include("**/*.java")
+    include(
+        "org/bukkit/**/*.java",
+        "com/destroystokyo/**/*.java",
+        "io/papermc/**/*.java",
+        "net/kyori/**/*.java",
+        "com/mojang/brigadier/**/*.java",
+        "com/google/gson/**/*.java",
+        "org/joml/**/*.java",
+        "org/jetbrains/annotations/**/*.java",
+    )
     into(layout.projectDirectory.dir("agent_sources/src"))
 }
 
